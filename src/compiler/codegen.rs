@@ -171,10 +171,10 @@ impl CodeGenerator {
         
         self.write_indent(file)?;
         writeln!(file, "return match prompt_result {{")?;
-        writeln!(file, "    VibeValue::String(s) => s,")?;
-        writeln!(file, "    VibeValue::Number(n) => n.to_string(),")?;
-        writeln!(file, "    _ => String::new(),")?;
-        writeln!(file, "}};")?;
+        writeln!(file, "            VibeValue::String(s) => s,")?;
+        writeln!(file, "            VibeValue::Number(n) => n.to_string(),")?;
+        writeln!(file, "            _ => String::new(),")?;
+        writeln!(file, "        }};")?;
         
         self.indent_level -= 1;
         self.write_indent(file)?;
