@@ -35,18 +35,18 @@ macro_rules! generate_vibe_value_enum {
     };
 }
 
-/// Generates the complete vibe_execute_prompt function
+/// Generates the parametric vibe_execute_prompt function
 #[macro_export]
-macro_rules! generate_vibe_execute_prompt {
+macro_rules! generate_parametric_vibe_execute_prompt {
     ($file:expr) => {
         writeln!(
             $file,
-            "fn vibe_execute_prompt(prompt: &str, meaning: Option<&str>) -> VibeValue {{"
+            "fn vibe_execute_prompt(prompt: &str, meaning: Option<&str>, return_type: &str) -> VibeValue {{"
         )?;
         crate::generate_ollama_client_setup!($file);
         crate::generate_prompt_enhancement!($file);
         crate::generate_request_body!($file);
-        crate::generate_ollama_request!($file);
+        crate::generate_parametric_ollama_request!($file);
         writeln!($file, "}}")?;
         writeln!($file)?;
     };
@@ -63,7 +63,7 @@ macro_rules! generate_ollama_client_setup {
         )?;
         writeln!(
             $file,
-            "        .unwrap_or_else(|_| \"http://localhost:11434\".to_string());"
+            "        .unwrap_or_else(|_| \"http://localhost:11223\".to_string());"
         )?;
         writeln!($file, "    let model = std::env::var(\"OLLAMA_MODEL\")")?;
         writeln!(
@@ -102,19 +102,14 @@ macro_rules! generate_request_body {
     };
 }
 
-/// Generates success response parsing with semantic type handling
+/// Generates parametric response parsing with semantic type handling
 #[macro_export]
-macro_rules! generate_success_response_handling {
+macro_rules! generate_parametric_response_handling {
     ($file:expr) => {
         writeln!($file, "        Ok(response) => {{")?;
         writeln!($file, "            if let Ok(response_json) = response.json::<serde_json::Value>() {{")?;
         writeln!($file, "                if let Some(content) = response_json.get(\"response\").and_then(|c| c.as_str()) {{")?;
-        writeln!($file, "                    match meaning {{")?;
-        writeln!($file, "                        Some(\"temperature in Celsius\") => {{")?;
-        crate::generate_temperature_parsing!($file);
-        writeln!($file, "                        }}")?;
-        writeln!($file, "                        _ => VibeValue::String(content.to_string())")?;
-        writeln!($file, "                    }}")?;
+        writeln!($file, "                    parse_semantic_response(content, meaning, return_type)")?;
         writeln!($file, "                }} else {{")?;
         writeln!($file, "                    VibeValue::String(\"Error: No response content\".to_string())")?;
         writeln!($file, "                }}")?;
@@ -122,24 +117,6 @@ macro_rules! generate_success_response_handling {
         writeln!($file, "                VibeValue::String(\"Error: Failed to parse JSON response\".to_string())")?;
         writeln!($file, "            }}")?;
         writeln!($file, "        }}")?;
-    };
-}
-
-/// Generates temperature-specific parsing logic
-#[macro_export]
-macro_rules! generate_temperature_parsing {
-    ($file:expr) => {
-        writeln!($file, "                            if let Ok(temp) = content.trim().parse::<f64>() {{")?;
-        writeln!($file, "                                VibeValue::Number(temp)")?;
-        writeln!($file, "                            }} else {{")?;
-        writeln!($file, "                                let number = content.split_whitespace()")?;
-        writeln!($file, "                                    .find_map(|word| word.chars()")?;
-        writeln!($file, "                                        .filter(|c| c.is_ascii_digit() || *c == '.' || *c == '-')")?;
-        writeln!($file, "                                        .collect::<String>()")?;
-        writeln!($file, "                                        .parse::<f64>().ok())")?;
-        writeln!($file, "                                    .unwrap_or(0.0);")?;
-        writeln!($file, "                                VibeValue::Number(number)")?;
-        writeln!($file, "                            }}")?;
     };
 }
 
@@ -153,9 +130,9 @@ macro_rules! generate_error_response_handling {
     };
 }
 
-/// Generates the complete Ollama HTTP request and response handling
+/// Generates the parametric Ollama HTTP request and response handling
 #[macro_export]
-macro_rules! generate_ollama_request {
+macro_rules! generate_parametric_ollama_request {
     ($file:expr) => {
         writeln!($file, "    match client")?;
         writeln!(
@@ -173,9 +150,319 @@ macro_rules! generate_ollama_request {
         )?;
         writeln!($file, "        .send()")?;
         writeln!($file, "    {{")?;
-        crate::generate_success_response_handling!($file);
+        crate::generate_parametric_response_handling!($file);
         crate::generate_error_response_handling!($file);
         writeln!($file, "    }}")?;
+    };
+}
+
+/// Generates the generic semantic parser function
+#[macro_export]
+macro_rules! generate_semantic_parser {
+    ($file:expr) => {
+        writeln!($file, "fn parse_semantic_response(content: &str, meaning: Option<&str>, return_type: &str) -> VibeValue {{")?;
+        writeln!($file, "    match return_type {{")?;
+        writeln!($file, "        \"i32\" => parse_integer_semantic(content, meaning),")?;
+        writeln!($file, "        \"f64\" => parse_float_semantic(content, meaning),")?;
+        writeln!($file, "        \"bool\" => parse_boolean_semantic(content, meaning),")?;
+        writeln!($file, "        _ => parse_string_semantic(content, meaning),")?;
+        writeln!($file, "    }}")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        // Generate type-specific parsers
+        crate::generate_integer_parser!($file);
+        crate::generate_float_parser!($file);
+        crate::generate_boolean_parser!($file);
+        crate::generate_string_parser!($file);
+    };
+}
+
+/// Generates integer-specific semantic parser
+#[macro_export]
+macro_rules! generate_integer_parser {
+    ($file:expr) => {
+        writeln!(
+            $file,
+            "fn parse_integer_semantic(content: &str, meaning: Option<&str>) -> VibeValue {{"
+        )?;
+        writeln!($file, "    // Try direct parsing first")?;
+        writeln!(
+            $file,
+            "    if let Ok(value) = content.trim().parse::<i32>() {{"
+        )?;
+        writeln!($file, "        return VibeValue::Number(value as f64);")?;
+        writeln!($file, "    }}")?;
+        writeln!($file)?;
+        writeln!($file, "    // Extract number based on semantic meaning")?;
+        writeln!($file, "    let extracted = match meaning {{")?;
+        writeln!(
+            $file,
+            "        Some(m) if m.contains(\"temperature\") => extract_temperature_value(content),"
+        )?;
+        writeln!(
+            $file,
+            "        Some(m) if m.contains(\"age\") => extract_age_value(content),"
+        )?;
+        writeln!(
+            $file,
+            "        Some(m) if m.contains(\"count\") => extract_count_value(content),"
+        )?;
+        writeln!(
+            $file,
+            "        Some(m) if m.contains(\"year\") => extract_year_value(content),"
+        )?;
+        writeln!($file, "        _ => extract_generic_number(content),")?;
+        writeln!($file, "    }};")?;
+        writeln!($file)?;
+        writeln!($file, "    VibeValue::Number(extracted as f64)")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+    };
+}
+
+/// Generates float-specific semantic parser
+#[macro_export]
+macro_rules! generate_float_parser {
+    ($file:expr) => {
+        writeln!($file, "fn parse_float_semantic(content: &str, meaning: Option<&str>) -> VibeValue {{")?;
+        writeln!($file, "    if let Ok(value) = content.trim().parse::<f64>() {{")?;
+        writeln!($file, "        return VibeValue::Number(value);")?;
+        writeln!($file, "    }}")?;
+        writeln!($file)?;
+        writeln!($file, "    let extracted = match meaning {{")?;
+        writeln!($file, "        Some(m) if m.contains(\"temperature\") => extract_temperature_value(content) as f64,")?;
+        writeln!($file, "        Some(m) if m.contains(\"price\") => extract_price_value(content),")?;
+        writeln!($file, "        Some(m) if m.contains(\"percentage\") => extract_percentage_value(content),")?;
+        writeln!($file, "        Some(m) if m.contains(\"rating\") => extract_rating_value(content),")?;
+        writeln!($file, "        _ => extract_generic_float(content),")?;
+        writeln!($file, "    }};")?;
+        writeln!($file)?;
+        writeln!($file, "    VibeValue::Number(extracted)")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+    };
+}
+
+/// Generates boolean-specific semantic parser
+#[macro_export]
+macro_rules! generate_boolean_parser {
+    ($file:expr) => {
+        writeln!($file, "fn parse_boolean_semantic(content: &str, meaning: Option<&str>) -> VibeValue {{")?;
+        writeln!($file, "    let content_lower = content.to_lowercase();")?;
+        writeln!($file)?;
+        writeln!($file, "    // Direct boolean parsing")?;
+        writeln!($file, "    if content_lower.contains(\"true\") || content_lower.contains(\"yes\") {{")?;
+        writeln!($file, "        return VibeValue::Boolean(true);")?;
+        writeln!($file, "    }}")?;
+        writeln!($file, "    if content_lower.contains(\"false\") || content_lower.contains(\"no\") {{")?;
+        writeln!($file, "        return VibeValue::Boolean(false);")?;
+        writeln!($file, "    }}")?;
+        writeln!($file)?;
+        writeln!($file, "    // Semantic-based boolean extraction")?;
+        writeln!($file, "    let result = match meaning {{")?;
+        writeln!($file, "        Some(m) if m.contains(\"sentiment\") => extract_sentiment_boolean(content),")?;
+        writeln!($file, "        Some(m) if m.contains(\"availability\") => extract_availability_boolean(content),")?;
+        writeln!($file, "        Some(m) if m.contains(\"recommendation\") => extract_recommendation_boolean(content),")?;
+        writeln!($file, "        _ => extract_generic_boolean(content),")?;
+        writeln!($file, "    }};")?;
+        writeln!($file)?;
+        writeln!($file, "    VibeValue::Boolean(result)")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+    };
+}
+
+/// Generates string-specific semantic parser
+#[macro_export]
+macro_rules! generate_string_parser {
+    ($file:expr) => {
+        writeln!(
+            $file,
+            "fn parse_string_semantic(content: &str, meaning: Option<&str>) -> VibeValue {{"
+        )?;
+        writeln!($file, "    let processed = match meaning {{")?;
+        writeln!(
+            $file,
+            "        Some(m) if m.contains(\"sentiment\") => extract_sentiment_string(content),"
+        )?;
+        writeln!(
+            $file,
+            "        Some(m) if m.contains(\"summary\") => extract_summary_string(content),"
+        )?;
+        writeln!(
+            $file,
+            "        Some(m) if m.contains(\"category\") => extract_category_string(content),"
+        )?;
+        writeln!(
+            $file,
+            "        Some(m) if m.contains(\"description\") => extract_description_string(content),"
+        )?;
+        writeln!($file, "        _ => content.trim().to_string(),")?;
+        writeln!($file, "    }};")?;
+        writeln!($file)?;
+        writeln!($file, "    VibeValue::String(processed)")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+    };
+}
+
+/// Generates extraction utility functions for different semantic types
+#[macro_export]
+macro_rules! generate_extraction_utilities {
+    ($file:expr) => {
+        // Numeric extractors
+        writeln!($file, "fn extract_temperature_value(text: &str) -> i32 {{")?;
+        writeln!($file, "    // Look for temperature patterns: \"25°C\", \"25 degrees\", \"25C\", etc.")?;
+        writeln!($file, "    text.split_whitespace()")?;
+        writeln!($file, "        .find_map(|word| {{")?;
+        writeln!($file, "            word.chars()")?;
+        writeln!($file, "                .filter(|c| c.is_ascii_digit() || *c == '.' || *c == '-')")?;
+        writeln!($file, "                .collect::<String>()")?;
+        writeln!($file, "                .parse::<i32>().ok()")?;
+        writeln!($file, "        }})")?;
+        writeln!($file, "        .unwrap_or(0)")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        writeln!($file, "fn extract_age_value(text: &str) -> i32 {{")?;
+        writeln!($file, "    // Look for age patterns: \"25 years old\", \"age 30\", \"30-year-old\"")?;
+        writeln!($file, "    for word in text.split_whitespace() {{")?;
+        writeln!($file, "        if let Ok(age) = word.chars().filter(|c| c.is_ascii_digit()).collect::<String>().parse::<i32>() {{")?;
+        writeln!($file, "            if age > 0 && age < 150 {{ return age; }}")?;
+        writeln!($file, "        }}")?;
+        writeln!($file, "    }}")?;
+        writeln!($file, "    0")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        writeln!($file, "fn extract_count_value(text: &str) -> i32 {{")?;
+        writeln!($file, "    extract_generic_number(text)")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        writeln!($file, "fn extract_year_value(text: &str) -> i32 {{")?;
+        writeln!($file, "    for word in text.split_whitespace() {{")?;
+        writeln!($file, "        if let Ok(year) = word.parse::<i32>() {{")?;
+        writeln!($file, "            if year >= 1900 && year <= 2100 {{ return year; }}")?;
+        writeln!($file, "        }}")?;
+        writeln!($file, "    }}")?;
+        writeln!($file, "    0")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        writeln!($file, "fn extract_generic_number(text: &str) -> i32 {{")?;
+        writeln!($file, "    text.split_whitespace()")?;
+        writeln!($file, "        .find_map(|word| word.parse::<i32>().ok())")?;
+        writeln!($file, "        .unwrap_or(0)")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        // Float extractors
+        writeln!($file, "fn extract_price_value(text: &str) -> f64 {{")?;
+        writeln!($file, "    // Look for price patterns: \"$25.99\", \"25.99 USD\", \"price: 25.99\"")?;
+        writeln!($file, "    text.split_whitespace()")?;
+        writeln!($file, "        .find_map(|word| {{")?;
+        writeln!($file, "            word.chars()")?;
+        writeln!($file, "                .filter(|c| c.is_ascii_digit() || *c == '.')")?;
+        writeln!($file, "                .collect::<String>()")?;
+        writeln!($file, "                .parse::<f64>().ok()")?;
+        writeln!($file, "        }})")?;
+        writeln!($file, "        .unwrap_or(0.0)")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        writeln!($file, "fn extract_percentage_value(text: &str) -> f64 {{")?;
+        writeln!($file, "    // Look for percentage patterns: \"75%\", \"75 percent\"")?;
+        writeln!($file, "    text.split_whitespace()")?;
+        writeln!($file, "        .find_map(|word| {{")?;
+        writeln!($file, "            word.trim_end_matches('%').parse::<f64>().ok()")?;
+        writeln!($file, "        }})")?;
+        writeln!($file, "        .unwrap_or(0.0)")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        writeln!($file, "fn extract_rating_value(text: &str) -> f64 {{")?;
+        writeln!($file, "    // Look for rating patterns: \"4.5/5\", \"4.5 stars\", \"rating: 4.5\"")?;
+        writeln!($file, "    extract_generic_float(text)")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        writeln!($file, "fn extract_generic_float(text: &str) -> f64 {{")?;
+        writeln!($file, "    text.split_whitespace()")?;
+        writeln!($file, "        .find_map(|word| word.parse::<f64>().ok())")?;
+        writeln!($file, "        .unwrap_or(0.0)")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        // Boolean extractors
+        writeln!($file, "fn extract_sentiment_boolean(text: &str) -> bool {{")?;
+        writeln!($file, "    let positive_words = [\"positive\", \"good\", \"happy\", \"excellent\", \"great\"];")?;
+        writeln!($file, "    let negative_words = [\"negative\", \"bad\", \"sad\", \"terrible\", \"awful\"];")?;
+        writeln!($file, "    let text_lower = text.to_lowercase();")?;
+        writeln!($file, "    positive_words.iter().any(|&word| text_lower.contains(word))")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        writeln!($file, "fn extract_availability_boolean(text: &str) -> bool {{")?;
+        writeln!($file, "    let available_words = [\"available\", \"in stock\", \"ready\", \"open\"];")?;
+        writeln!($file, "    let text_lower = text.to_lowercase();")?;
+        writeln!($file, "    available_words.iter().any(|&word| text_lower.contains(word))")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        writeln!($file, "fn extract_recommendation_boolean(text: &str) -> bool {{")?;
+        writeln!($file, "    let recommend_words = [\"recommend\", \"suggest\", \"advise\", \"should\", \"yes\"];")?;
+        writeln!($file, "    let text_lower = text.to_lowercase();")?;
+        writeln!($file, "    recommend_words.iter().any(|&word| text_lower.contains(word))")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        writeln!($file, "fn extract_generic_boolean(text: &str) -> bool {{")?;
+        writeln!($file, "    let text_lower = text.to_lowercase();")?;
+        writeln!($file, "    text_lower.contains(\"true\") || text_lower.contains(\"yes\") || text_lower.contains(\"positive\")")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        // String extractors
+        writeln!($file, "fn extract_sentiment_string(text: &str) -> String {{")?;
+        writeln!($file, "    // Extract sentiment keywords and return normalized sentiment")?;
+        writeln!($file, "    let text_lower = text.to_lowercase();")?;
+        writeln!($file, "    if text_lower.contains(\"positive\") || text_lower.contains(\"happy\") || text_lower.contains(\"good\") {{")?;
+        writeln!($file, "        \"positive\".to_string()")?;
+        writeln!($file, "    }} else if text_lower.contains(\"negative\") || text_lower.contains(\"sad\") || text_lower.contains(\"bad\") {{")?;
+        writeln!($file, "        \"negative\".to_string()")?;
+        writeln!($file, "    }} else {{")?;
+        writeln!($file, "        \"neutral\".to_string()")?;
+        writeln!($file, "    }}")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        writeln!($file, "fn extract_summary_string(text: &str) -> String {{")?;
+        writeln!($file, "    // Extract first sentence or up to first 100 characters for summary")?;
+        writeln!($file, "    if let Some(first_sentence) = text.split('.').next() {{")?;
+        writeln!($file, "        first_sentence.trim().to_string()")?;
+        writeln!($file, "    }} else if text.len() > 100 {{")?;
+        writeln!($file, "        format!(\"{{}}...\", &text[..97])")?;
+        writeln!($file, "    }} else {{")?;
+        writeln!($file, "        text.trim().to_string()")?;
+        writeln!($file, "    }}")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        writeln!($file, "fn extract_category_string(text: &str) -> String {{")?;
+        writeln!($file, "    // Extract category-like words (usually nouns)")?;
+        writeln!($file, "    text.split_whitespace()")?;
+        writeln!($file, "        .find(|word| word.len() > 2 && word.chars().all(|c| c.is_alphabetic()))")?;
+        writeln!($file, "        .unwrap_or(\"unknown\")")?;
+        writeln!($file, "        .to_lowercase()")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
+
+        writeln!($file, "fn extract_description_string(text: &str) -> String {{")?;
+        writeln!($file, "    text.trim().to_string()")?;
+        writeln!($file, "}}")?;
+        writeln!($file)?;
     };
 }
 
@@ -206,7 +493,9 @@ macro_rules! generate_all_headers {
     ($file:expr) => {
         crate::generate_file_header!($file);
         crate::generate_imports!($file);
-        crate::generate_vibe_execute_prompt!($file);
+        crate::generate_parametric_vibe_execute_prompt!($file);
+        crate::generate_semantic_parser!($file);
+        crate::generate_extraction_utilities!($file);
         crate::generate_format_prompt_function!($file);
         crate::generate_vibe_value_enum!($file);
     };

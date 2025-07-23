@@ -7,6 +7,7 @@ use std::io::Write;
 pub struct CodeGenerator {
     indent_level: usize,
     current_return_type: Option<String>,
+    current_semantic_meaning: Option<String>,
 }
 
 impl CodeGenerator {
@@ -14,6 +15,7 @@ impl CodeGenerator {
         Self {
             indent_level: 0,
             current_return_type: None,
+            current_semantic_meaning: None,
         }
     }
 
@@ -123,68 +125,31 @@ impl CodeGenerator {
             writeln!(file, "let formatted_prompt = prompt_template.to_string();")?;
         }
 
-        // Use the stored semantic meaning from function context
-        let meaning_context = self.get_semantic_meaning_from_context(prompt);
-
-        self.write_indent(file)?;
-        if let Some(meaning) = meaning_context {
-            writeln!(
-                file,
-                "let prompt_result = vibe_execute_prompt(&formatted_prompt, Some(\"{}\"));",
-                meaning
-            )?;
-        } else {
-            writeln!(
-                file,
-                "let prompt_result = vibe_execute_prompt(&formatted_prompt, None);"
-            )?;
-        }
-
-        // Generate type-aware return conversion using stored function return type
+        // Use parametric prompt execution with semantic meaning and return type
         let return_type = self.determine_return_type_from_context(prompt);
-        self.write_indent(file)?;
+        let meaning_context = self.current_semantic_meaning.as_deref();
 
-        match return_type.as_str() {
-            "i32" => {
-                writeln!(file, "return match prompt_result {{")?;
-                writeln!(file, "        VibeValue::Number(n) => n as i32,")?;
+        self.write_indent(file)?;
+        match meaning_context {
+            Some(meaning) => {
                 writeln!(
                     file,
-                    "        VibeValue::String(s) => s.parse::<i32>().unwrap_or(0),"
+                    "let prompt_result = vibe_execute_prompt(&formatted_prompt, Some(\"{}\"), \"{}\");",
+                    meaning, return_type
                 )?;
-                writeln!(file, "        _ => 0,")?;
-                writeln!(file, "    }};")?;
             }
-            "f64" => {
-                writeln!(file, "return match prompt_result {{")?;
-                writeln!(file, "        VibeValue::Number(n) => n,")?;
+            None => {
                 writeln!(
                     file,
-                    "        VibeValue::String(s) => s.parse::<f64>().unwrap_or(0.0),"
+                    "let prompt_result = vibe_execute_prompt(&formatted_prompt, None, \"{}\");",
+                    return_type
                 )?;
-                writeln!(file, "        _ => 0.0,")?;
-                writeln!(file, "    }};")?;
-            }
-            "bool" => {
-                writeln!(file, "return match prompt_result {{")?;
-                writeln!(file, "        VibeValue::Boolean(b) => b,")?;
-                writeln!(
-                    file,
-                    "        VibeValue::String(s) => s.to_lowercase() == \"true\","
-                )?;
-                writeln!(file, "        _ => false,")?;
-                writeln!(file, "    }};")?;
-            }
-            _ => {
-                // Default to String return
-                writeln!(file, "return match prompt_result {{")?;
-                writeln!(file, "        VibeValue::String(s) => s,")?;
-                writeln!(file, "        VibeValue::Number(n) => n.to_string(),")?;
-                writeln!(file, "        VibeValue::Boolean(b) => b.to_string(),")?;
-                writeln!(file, "        _ => String::new(),")?;
-                writeln!(file, "    }};")?;
             }
         }
+
+        // Generate type-aware return conversion
+        self.write_indent(file)?;
+        self.generate_type_conversion(file, &return_type)?;
 
         self.indent_level -= 1;
         self.write_indent(file)?;
@@ -193,26 +158,81 @@ impl CodeGenerator {
         Ok(())
     }
 
+    fn generate_type_conversion(&mut self, file: &mut File, return_type: &str) -> Result<()> {
+        match return_type {
+            "i32" => {
+                writeln!(file, "return match prompt_result {{")?;
+                self.indent_level += 1;
+                self.write_indent(file)?;
+                writeln!(file, "VibeValue::Number(n) => n as i32,")?;
+                self.write_indent(file)?;
+                writeln!(
+                    file,
+                    "VibeValue::String(s) => s.parse::<i32>().unwrap_or(0),"
+                )?;
+                self.write_indent(file)?;
+                writeln!(file, "_ => 0,")?;
+                self.indent_level -= 1;
+                self.write_indent(file)?;
+                writeln!(file, "}};")?;
+            }
+            "f64" => {
+                writeln!(file, "return match prompt_result {{")?;
+                self.indent_level += 1;
+                self.write_indent(file)?;
+                writeln!(file, "VibeValue::Number(n) => n,")?;
+                self.write_indent(file)?;
+                writeln!(
+                    file,
+                    "VibeValue::String(s) => s.parse::<f64>().unwrap_or(0.0),"
+                )?;
+                self.write_indent(file)?;
+                writeln!(file, "_ => 0.0,")?;
+                self.indent_level -= 1;
+                self.write_indent(file)?;
+                writeln!(file, "}};")?;
+            }
+            "bool" => {
+                writeln!(file, "return match prompt_result {{")?;
+                self.indent_level += 1;
+                self.write_indent(file)?;
+                writeln!(file, "VibeValue::Boolean(b) => b,")?;
+                self.write_indent(file)?;
+                writeln!(
+                    file,
+                    "VibeValue::String(s) => s.to_lowercase() == \"true\","
+                )?;
+                self.write_indent(file)?;
+                writeln!(file, "_ => false,")?;
+                self.indent_level -= 1;
+                self.write_indent(file)?;
+                writeln!(file, "}};")?;
+            }
+            _ => {
+                // Default to String return
+                writeln!(file, "return match prompt_result {{")?;
+                self.indent_level += 1;
+                self.write_indent(file)?;
+                writeln!(file, "VibeValue::String(s) => s,")?;
+                self.write_indent(file)?;
+                writeln!(file, "VibeValue::Number(n) => n.to_string(),")?;
+                self.write_indent(file)?;
+                writeln!(file, "VibeValue::Boolean(b) => b.to_string(),")?;
+                self.write_indent(file)?;
+                writeln!(file, "_ => String::new(),")?;
+                self.indent_level -= 1;
+                self.write_indent(file)?;
+                writeln!(file, "}};")?;
+            }
+        }
+        Ok(())
+    }
+
     fn determine_return_type_from_context(&self, _prompt: &AstNode) -> String {
-        // Use the stored current return type from function context
         if let Some(return_type) = &self.current_return_type {
             return_type.clone()
         } else {
-            "String".to_string() // Default fallback
-        }
-    }
-
-    fn get_semantic_meaning_from_context(&self, prompt: &AstNode) -> Option<String> {
-        // Extract semantic meaning from the current function's return type
-        // This would ideally traverse parent nodes, but for now we'll use a heuristic
-        if let Some(return_type) = &self.current_return_type {
-            match return_type.as_str() {
-                "i32" => Some("temperature in Celsius".to_string()),
-                "f64" => Some("temperature in Celsius".to_string()),
-                _ => None,
-            }
-        } else {
-            None
+            "String".to_string()
         }
     }
 
@@ -222,9 +242,11 @@ impl CodeGenerator {
             .ok_or_else(|| anyhow!("Function missing name"))?;
 
         let return_type = self.determine_return_type(func);
+        let semantic_meaning = self.extract_semantic_meaning_from_function(func);
 
-        // Store return type for prompt block generation - THIS IS KEY
+        // Store context for prompt block generation
         self.current_return_type = Some(return_type.clone());
+        self.current_semantic_meaning = semantic_meaning;
 
         write!(file, "pub fn {}(", func_name)?;
 
@@ -239,8 +261,9 @@ impl CodeGenerator {
         writeln!(file, "}}")?;
         writeln!(file)?;
 
-        // Clear return type context
+        // Clear context
         self.current_return_type = None;
+        self.current_semantic_meaning = None;
 
         Ok(())
     }
@@ -330,7 +353,6 @@ impl CodeGenerator {
         writeln!(file, "}}")?;
         writeln!(file)?;
 
-        // Generate impl block
         self.generate_impl_block(file, class, struct_name)?;
 
         Ok(())
@@ -409,7 +431,6 @@ impl CodeGenerator {
                     }
                 }
                 AstNodeType::MeaningType => {
-                    // Extract the base type from MeaningType
                     if !child.children.is_empty() {
                         let base_child = &child.children[0];
                         if let Some(base_type_name) = base_child.get_string("type") {
@@ -420,7 +441,7 @@ impl CodeGenerator {
                 _ => {}
             }
         }
-        "String".to_string() // Default for functions without explicit return types
+        "String".to_string()
     }
 
     fn extract_semantic_meaning_from_function(&self, func: &AstNode) -> Option<String> {
@@ -442,14 +463,12 @@ impl CodeGenerator {
     }
 
     fn infer_variable_type(&self, var: &AstNode) -> String {
-        // Check explicit type first
         for child in &var.children {
             if let Some(type_name) = self.extract_type_name(child) {
                 return self.map_to_rust_type(&type_name);
             }
         }
 
-        // Infer from initialization
         for child in &var.children {
             match child.node_type {
                 AstNodeType::StringLiteral => return "String".to_string(),
