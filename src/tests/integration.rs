@@ -24,14 +24,14 @@ async fn test_complete_mtp_workflow() {
     
     // Test code generation
     let mut codegen = CodeGenerator::new();
-    let result = codegen.generate(&ast, "/tmp/test_mtp.c");
+    let result = codegen.generate(&ast, "/tmp/test_mtp.rs");
     assert!(result.is_ok());
     
     use std::path::Path;
-    assert!(Path::new(&"/tmp/test_mtp.c").exists());
+    assert!(Path::new(&"/tmp/test_mtp.rs").exists());
 
     // Verify generated C code contains MTP elements
-    let generated = std::fs::read_to_string("/tmp/test_mtp.c").unwrap();
+    let generated = std::fs::read_to_string("/tmp/test_mtp.rs").unwrap();
     println!("{:?}", generated);
 
     assert!(generated.contains("get_temperature(city: String) -> i32"));

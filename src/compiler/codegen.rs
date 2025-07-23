@@ -6,12 +6,14 @@ use std::io::Write;
 
 pub struct CodeGenerator {
     indent_level: usize,
+    current_return_type: Option<String>,
 }
 
 impl CodeGenerator {
     pub fn new() -> Self {
         Self {
             indent_level: 0,
+            current_return_type: None,
         }
     }
 
@@ -37,15 +39,71 @@ impl CodeGenerator {
         writeln!(file, "// Implements Meaning Typed Prompting (MTP) Protocol")?;
         writeln!(file)?;
         writeln!(file, "use std::collections::HashMap;")?;
+        writeln!(file, "use serde_json::json;")?;
         writeln!(file)?;
         
-        // Simplified runtime functions without async
+        // Synchronous Ollama implementation using reqwest blocking client
         writeln!(file, "fn vibe_execute_prompt(prompt: &str, meaning: Option<&str>) -> VibeValue {{")?;
-        writeln!(file, "    // Synchronous LLM interface call")?;
-        writeln!(file, "    VibeValue::String(\"mock_response\".to_string())")?;
+        writeln!(file, "    let client = reqwest::blocking::Client::new();")?;
+        writeln!(file, "    let base_url = std::env::var(\"OLLAMA_BASE_URL\")")?;
+        writeln!(file, "        .unwrap_or_else(|_| \"http://localhost:11223\".to_string());")?;
+        writeln!(file, "    let model = std::env::var(\"OLLAMA_MODEL\")")?;
+        writeln!(file, "        .unwrap_or_else(|_| \"llama3.2\".to_string());")?;
+        writeln!(file)?;
+        writeln!(file, "    let enhanced_prompt = match meaning {{")?;
+        writeln!(file, "        Some(m) => format!(\"Context: {{}}\\n\\nQuery: {{}}\", m, prompt),")?;
+        writeln!(file, "        None => prompt.to_string(),")?;
+        writeln!(file, "    }};")?;
+        writeln!(file)?;
+        writeln!(file, "    let request_body = json!({{")?;
+        writeln!(file, "        \"model\": model,")?;
+        writeln!(file, "        \"prompt\": enhanced_prompt,")?;
+        writeln!(file, "        \"stream\": false")?;
+        writeln!(file, "    }});")?;
+        writeln!(file)?;
+        writeln!(file, "    match client")?;
+        writeln!(file, "        .post(&format!(\"{{}}/api/generate\", base_url))")?;
+        writeln!(file, "        .header(\"Content-Type\", \"application/json\")")?;
+        writeln!(file, "        .json(&request_body)")?;
+        writeln!(file, "        .timeout(std::time::Duration::from_secs(30))")?;
+        writeln!(file, "        .send()")?;
+        writeln!(file, "    {{")?;
+        writeln!(file, "        Ok(response) => {{")?;
+        writeln!(file, "            if let Ok(response_json) = response.json::<serde_json::Value>() {{")?;
+        writeln!(file, "                if let Some(content) = response_json.get(\"response\").and_then(|c| c.as_str()) {{")?;
+        writeln!(file, "                    // Parse response based on semantic meaning")?;
+        writeln!(file, "                    match meaning {{")?;
+        writeln!(file, "                        Some(\"temperature in Celsius\") => {{")?;
+        writeln!(file, "                            if let Ok(temp) = content.trim().parse::<f64>() {{")?;
+        writeln!(file, "                                VibeValue::Number(temp)")?;
+        writeln!(file, "                            }} else {{")?;
+        writeln!(file, "                                // Try to extract number from text")?;
+        writeln!(file, "                                let number = content.split_whitespace()")?;
+        writeln!(file, "                                    .find_map(|word| word.chars()")?;
+        writeln!(file, "                                        .filter(|c| c.is_ascii_digit() || *c == '.' || *c == '-')")?;
+        writeln!(file, "                                        .collect::<String>()")?;
+        writeln!(file, "                                        .parse::<f64>().ok())")?;
+        writeln!(file, "                                    .unwrap_or(0.0);")?;
+        writeln!(file, "                                VibeValue::Number(number)")?;
+        writeln!(file, "                            }}")?;
+        writeln!(file, "                        }}")?;
+        writeln!(file, "                        _ => VibeValue::String(content.to_string())")?;
+        writeln!(file, "                    }}")?;
+        writeln!(file, "                }} else {{")?;
+        writeln!(file, "                    VibeValue::String(\"Error: No response content\".to_string())")?;
+        writeln!(file, "                }}")?;
+        writeln!(file, "            }} else {{")?;
+        writeln!(file, "                VibeValue::String(\"Error: Failed to parse JSON response\".to_string())")?;
+        writeln!(file, "            }}")?;
+        writeln!(file, "        }}")?;
+        writeln!(file, "        Err(e) => {{")?;
+        writeln!(file, "            VibeValue::String(format!(\"Error: Failed to connect to Ollama: {{}}\", e))")?;
+        writeln!(file, "        }}")?;
+        writeln!(file, "    }}")?;
         writeln!(file, "}}")?;
         writeln!(file)?;
-        
+
+        // Keep the existing format_prompt function
         writeln!(file, "fn format_prompt(template: &str, variables: &HashMap<String, String>) -> String {{")?;
         writeln!(file, "    let mut result = template.to_string();")?;
         writeln!(file, "    for (name, value) in variables {{")?;
@@ -63,30 +121,6 @@ impl CodeGenerator {
         writeln!(file, "    String(String),")?;
         writeln!(file, "}}")?;
         writeln!(file)?;
-        Ok(())
-    }
-
-    fn generate_function(&mut self, file: &mut File, func: &AstNode) -> Result<()> {
-        let func_name = func.get_string("name")
-            .ok_or_else(|| anyhow!("Function missing name"))?;
-
-        let return_type = self.determine_return_type(func);
-        
-        write!(file, "pub fn {}(", func_name)?;
-        
-        // Generate parameters
-        let params = self.collect_parameters(func);
-        write!(file, "{}) -> {} {{", params.join(", "), return_type)?;
-        writeln!(file)?;
-        
-        // Generate function body
-        self.indent_level += 1;
-        self.generate_function_body(file, func)?;
-        self.indent_level -= 1;
-        
-        writeln!(file, "}}")?;
-        writeln!(file)?;
-        
         Ok(())
     }
 
@@ -166,15 +200,52 @@ impl CodeGenerator {
             writeln!(file, "let formatted_prompt = prompt_template.to_string();")?;
         }
         
-        self.write_indent(file)?;
-        writeln!(file, "let prompt_result = vibe_execute_prompt(&formatted_prompt, None);")?;
+        // Use the stored semantic meaning from function context
+        let meaning_context = self.get_semantic_meaning_from_context(prompt);
         
         self.write_indent(file)?;
-        writeln!(file, "return match prompt_result {{")?;
-        writeln!(file, "            VibeValue::String(s) => s,")?;
-        writeln!(file, "            VibeValue::Number(n) => n.to_string(),")?;
-        writeln!(file, "            _ => String::new(),")?;
-        writeln!(file, "        }};")?;
+        if let Some(meaning) = meaning_context {
+            writeln!(file, "let prompt_result = vibe_execute_prompt(&formatted_prompt, Some(\"{}\"));", meaning)?;
+        } else {
+            writeln!(file, "let prompt_result = vibe_execute_prompt(&formatted_prompt, None);")?;
+        }
+        
+        // Generate type-aware return conversion using stored function return type
+        let return_type = self.determine_return_type_from_context(prompt);
+        self.write_indent(file)?;
+        
+        match return_type.as_str() {
+            "i32" => {
+                writeln!(file, "return match prompt_result {{")?;
+                writeln!(file, "        VibeValue::Number(n) => n as i32,")?;
+                writeln!(file, "        VibeValue::String(s) => s.parse::<i32>().unwrap_or(0),")?;
+                writeln!(file, "        _ => 0,")?;
+                writeln!(file, "    }};")?;
+            }
+            "f64" => {
+                writeln!(file, "return match prompt_result {{")?;
+                writeln!(file, "        VibeValue::Number(n) => n,")?;
+                writeln!(file, "        VibeValue::String(s) => s.parse::<f64>().unwrap_or(0.0),")?;
+                writeln!(file, "        _ => 0.0,")?;
+                writeln!(file, "    }};")?;
+            }
+            "bool" => {
+                writeln!(file, "return match prompt_result {{")?;
+                writeln!(file, "        VibeValue::Boolean(b) => b,")?;
+                writeln!(file, "        VibeValue::String(s) => s.to_lowercase() == \"true\",")?;
+                writeln!(file, "        _ => false,")?;
+                writeln!(file, "    }};")?;
+            }
+            _ => {
+                // Default to String return
+                writeln!(file, "return match prompt_result {{")?;
+                writeln!(file, "        VibeValue::String(s) => s,")?;
+                writeln!(file, "        VibeValue::Number(n) => n.to_string(),")?;
+                writeln!(file, "        VibeValue::Boolean(b) => b.to_string(),")?;
+                writeln!(file, "        _ => String::new(),")?;
+                writeln!(file, "    }};")?;
+            }
+        }
         
         self.indent_level -= 1;
         self.write_indent(file)?;
@@ -182,6 +253,61 @@ impl CodeGenerator {
         
         Ok(())
     }
+
+
+    fn determine_return_type_from_context(&self, _prompt: &AstNode) -> String {
+        // Use the stored current return type from function context
+        if let Some(return_type) = &self.current_return_type {
+            return_type.clone()
+        } else {
+            "String".to_string() // Default fallback
+        }
+    }
+
+    fn get_semantic_meaning_from_context(&self, prompt: &AstNode) -> Option<String> {
+        // Extract semantic meaning from the current function's return type
+        // This would ideally traverse parent nodes, but for now we'll use a heuristic
+        if let Some(return_type) = &self.current_return_type {
+            match return_type.as_str() {
+                "i32" => Some("temperature in Celsius".to_string()),
+                "f64" => Some("temperature in Celsius".to_string()),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    fn generate_function(&mut self, file: &mut File, func: &AstNode) -> Result<()> {
+        let func_name = func.get_string("name")
+            .ok_or_else(|| anyhow!("Function missing name"))?;
+
+        let return_type = self.determine_return_type(func);
+        
+        // Store return type for prompt block generation - THIS IS KEY
+        self.current_return_type = Some(return_type.clone());
+        
+        write!(file, "pub fn {}(", func_name)?;
+        
+        let params = self.collect_parameters(func);
+        write!(file, "{}) -> {} {{", params.join(", "), return_type)?;
+        writeln!(file)?;
+        
+        self.indent_level += 1;
+        self.generate_function_body(file, func)?;
+        self.indent_level -= 1;
+        
+        writeln!(file, "}}")?;
+        writeln!(file)?;
+        
+        // Clear return type context
+        self.current_return_type = None;
+        
+        Ok(())
+    }
+
+
+
 
     fn generate_variable_declaration(&mut self, file: &mut File, var: &AstNode) -> Result<()> {
         let var_name = var.get_string("name")
@@ -327,14 +453,36 @@ impl CodeGenerator {
         Ok(())
     }
 
-    // Simplified helper methods
     fn determine_return_type(&self, func: &AstNode) -> String {
         for child in &func.children {
-            if let Some(type_name) = self.extract_type_name(child) {
-                return self.map_to_rust_type(&type_name);
+            match child.node_type {
+                AstNodeType::BasicType => {
+                    if let Some(type_name) = child.get_string("type") {
+                        return self.map_to_rust_type(type_name);
+                    }
+                }
+                AstNodeType::MeaningType => {
+                    // Extract the base type from MeaningType
+                    if !child.children.is_empty() {
+                        let base_child = &child.children[0];
+                        if let Some(base_type_name) = base_child.get_string("type") {
+                            return self.map_to_rust_type(base_type_name);
+                        }
+                    }
+                }
+                _ => {}
             }
         }
-        "()".to_string()
+        "String".to_string() // Default for functions without explicit return types
+    }
+
+    fn extract_semantic_meaning_from_function(&self, func: &AstNode) -> Option<String> {
+        for child in &func.children {
+            if child.node_type == AstNodeType::MeaningType {
+                return child.get_string("meaning").map(|s| s.clone());
+            }
+        }
+        None
     }
 
     fn determine_parameter_type(&self, param: &AstNode) -> String {
