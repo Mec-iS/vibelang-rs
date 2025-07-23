@@ -373,7 +373,8 @@ fn test_llm_naming_fallback() -> Result<()> {
     assert!(binary_name.chars().all(|c| c.is_alphanumeric() || c == '_'));
 
     // Verify the names contain relevant semantic content
-    assert!(package_name.contains("weather") || package_name.contains("temperature"));
+
+    assert!(package_name.contains("weather") || package_name.contains("forecasts"));
 
     println!("✅ LLM naming fallback system working correctly");
     println!("Generated package name: {}", package_name);

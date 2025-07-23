@@ -1,6 +1,5 @@
 use crate::utils::ast::{AstNode, AstNodeType};
 use anyhow::{Result, anyhow};
-use std::fmt;
 
 #[derive(Debug, Clone)]
 pub struct Token {

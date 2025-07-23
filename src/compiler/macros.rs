@@ -181,9 +181,6 @@ macro_rules! generate_format_prompt_function {
 #[macro_export]
 macro_rules! generate_cargo_toml_from_source {
     ($cargo_toml_path:expr, $vibelang_source:expr, $rust_file_name:expr) => {{
-        use regex::Regex;
-        use std::collections::HashMap;
-
         // Extract semantic annotations from VibeLang source
         let semantic_annotations =
             crate::compiler::macros::helpers::extract_semantic_annotations($vibelang_source);

@@ -136,34 +136,6 @@ impl LlmInterface {
         }
     }
 
-    fn mock_response(&self, prompt: &str, meaning: Option<&str>) -> VibeValue {
-        let prompt_lower = prompt.to_lowercase();
-
-        if prompt_lower.contains("weather") {
-            VibeValue {
-                value_type: VibeValueType::String,
-                data: VibeValueData::String("Sunny with a high of 75°F".to_string()),
-            }
-        } else if prompt_lower.contains("temperature")
-            || meaning.map_or(false, |m| m.contains("temperature"))
-        {
-            VibeValue {
-                value_type: VibeValueType::Number,
-                data: VibeValueData::Number(25.0),
-            }
-        } else if prompt_lower.contains("greeting") {
-            VibeValue {
-                value_type: VibeValueType::String,
-                data: VibeValueData::String("Hello! Welcome to VibeLang.".to_string()),
-            }
-        } else {
-            VibeValue {
-                value_type: VibeValueType::String,
-                data: VibeValueData::String("This is a mock response from the LLM".to_string()),
-            }
-        }
-    }
-
     fn extract_number_from_text(&self, text: &str) -> Result<f64, std::num::ParseFloatError> {
         text.split_whitespace()
             .find_map(|word| {
