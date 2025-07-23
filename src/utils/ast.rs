@@ -14,25 +14,25 @@ pub enum AstNodeType {
     ClassBody,
     MemberVar,
     Import,
-    
+
     // Type system
     BasicType,
     MeaningType,
-    
+
     // Parameters and arguments
     ParamList,
     Parameter,
-    
+
     // Statements
     Block,
     ExprStmt,
     ReturnStmt,
     PromptBlock,
-    
+
     // Expressions
     CallExpr,
     Identifier,
-    
+
     // Literals
     StringLiteral,
     IntLiteral,
@@ -76,19 +76,23 @@ impl AstNode {
 
     // Property setters matching C API
     pub fn set_string(&mut self, name: &str, value: &str) {
-        self.properties.insert(name.to_string(), PropertyValue::String(value.to_string()));
+        self.properties
+            .insert(name.to_string(), PropertyValue::String(value.to_string()));
     }
 
     pub fn set_int(&mut self, name: &str, value: i64) {
-        self.properties.insert(name.to_string(), PropertyValue::Int(value));
+        self.properties
+            .insert(name.to_string(), PropertyValue::Int(value));
     }
 
     pub fn set_float(&mut self, name: &str, value: f64) {
-        self.properties.insert(name.to_string(), PropertyValue::Float(value));
+        self.properties
+            .insert(name.to_string(), PropertyValue::Float(value));
     }
 
     pub fn set_bool(&mut self, name: &str, value: bool) {
-        self.properties.insert(name.to_string(), PropertyValue::Bool(value));
+        self.properties
+            .insert(name.to_string(), PropertyValue::Bool(value));
     }
 
     // Property getters matching C API

@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use reqwest;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::env;
 
@@ -35,10 +35,10 @@ impl LlmInterface {
     pub async fn new() -> Result<Self> {
         let ollama_url = env::var("OLLAMA_BASE_URL")
             .unwrap_or_else(|_| "http://localhost:11223/api/generate".to_string());
-        
+
         // Try to detect if Ollama is running locally
         let use_ollama = Self::is_ollama_available(&ollama_url).await;
-        
+
         let base_url = if use_ollama {
             // Use local Ollama - no API key needed
             ollama_url.clone()
@@ -47,7 +47,7 @@ impl LlmInterface {
         };
 
         println!("{:?}", ollama_url);
-        
+
         Ok(Self {
             client: reqwest::Client::new(),
             base_url,
@@ -56,7 +56,8 @@ impl LlmInterface {
 
     async fn is_ollama_available(url: &str) -> bool {
         let client = reqwest::Client::new();
-        match client.get(&format!("{}/api/tags", url))
+        match client
+            .get(&format!("{}/api/tags", url))
             .timeout(std::time::Duration::from_secs(2))
             .send()
             .await
@@ -83,7 +84,8 @@ impl LlmInterface {
             "temperature": 0.7
         });
 
-        let response = self.client
+        let response = self
+            .client
             .post(&format!("{}/chat/completions", self.base_url))
             .header("Content-Type", "application/json")
             .json(&request_body)
@@ -96,7 +98,7 @@ impl LlmInterface {
         }
 
         let response_json: Value = response.json().await?;
-        
+
         let content = response_json
             .get("choices")
             .and_then(|c| c.as_array())
@@ -112,40 +114,39 @@ impl LlmInterface {
     fn parse_response(&self, response: &str, meaning: Option<&str>) -> Result<VibeValue> {
         match meaning {
             Some("temperature in Celsius") => {
-                let temperature: f64 = response.trim().parse()
+                let temperature: f64 = response
+                    .trim()
+                    .parse()
                     .or_else(|_| self.extract_number_from_text(response))
                     .unwrap_or(0.0);
-                
+
                 Ok(VibeValue {
                     value_type: VibeValueType::Number,
                     data: VibeValueData::Number(temperature),
                 })
             }
-            Some("weather description") => {
-                Ok(VibeValue {
-                    value_type: VibeValueType::String,
-                    data: VibeValueData::String(response.to_string()),
-                })
-            }
-            _ => {
-                Ok(VibeValue {
-                    value_type: VibeValueType::String,
-                    data: VibeValueData::String(response.to_string()),
-                })
-            }
+            Some("weather description") => Ok(VibeValue {
+                value_type: VibeValueType::String,
+                data: VibeValueData::String(response.to_string()),
+            }),
+            _ => Ok(VibeValue {
+                value_type: VibeValueType::String,
+                data: VibeValueData::String(response.to_string()),
+            }),
         }
     }
 
     fn mock_response(&self, prompt: &str, meaning: Option<&str>) -> VibeValue {
         let prompt_lower = prompt.to_lowercase();
-        
+
         if prompt_lower.contains("weather") {
             VibeValue {
                 value_type: VibeValueType::String,
                 data: VibeValueData::String("Sunny with a high of 75°F".to_string()),
             }
-        } else if prompt_lower.contains("temperature") || 
-                  meaning.map_or(false, |m| m.contains("temperature")) {
+        } else if prompt_lower.contains("temperature")
+            || meaning.map_or(false, |m| m.contains("temperature"))
+        {
             VibeValue {
                 value_type: VibeValueType::Number,
                 data: VibeValueData::Number(25.0),
@@ -178,12 +179,12 @@ impl LlmInterface {
 
 pub fn format_prompt(template: &str, variables: &HashMap<String, String>) -> String {
     let mut result = template.to_string();
-    
+
     for (name, value) in variables {
         let placeholder = format!("{{{}}}", name);
         result = result.replace(&placeholder, value);
     }
-    
+
     result
 }
 
