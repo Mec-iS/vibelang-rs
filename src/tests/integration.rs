@@ -4,8 +4,8 @@ use crate::runtime::llm_interface::{LlmInterface, VibeValueType, format_prompt};
 use crate::utils::ast::{AstNode, AstNodeType};
 use std::env;
 
-#[tokio::test]
-async fn test_complete_mtp_workflow() {
+#[test]
+fn test_complete_mtp_workflow() {
     let source = r#"
         type Weather = Meaning<String>("weather description");
         

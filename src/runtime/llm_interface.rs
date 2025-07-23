@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::env;
 
 pub struct LlmInterface {
-    client: reqwest::Client,
+    client: reqwest::blocking::Client,
     base_url: String,
 }
 
@@ -32,12 +32,12 @@ pub enum VibeValueData {
 }
 
 impl LlmInterface {
-    pub async fn new() -> Result<Self> {
+    pub fn new() -> Result<Self> {
         let ollama_url = env::var("OLLAMA_BASE_URL")
             .unwrap_or_else(|_| "http://localhost:11223/api/generate".to_string());
 
         // Try to detect if Ollama is running locally
-        let use_ollama = Self::is_ollama_available(&ollama_url).await;
+        let use_ollama = Self::is_ollama_available(&ollama_url);
 
         let base_url = if use_ollama {
             // Use local Ollama - no API key needed
@@ -49,30 +49,29 @@ impl LlmInterface {
         println!("{:?}", ollama_url);
 
         Ok(Self {
-            client: reqwest::Client::new(),
+            client: reqwest::blocking::Client::new(),
             base_url,
         })
     }
 
-    async fn is_ollama_available(url: &str) -> bool {
-        let client = reqwest::Client::new();
+    fn is_ollama_available(url: &str) -> bool {
+        let client = reqwest::blocking::Client::new();
         match client
             .get(&format!("{}/api/tags", url))
             .timeout(std::time::Duration::from_secs(2))
             .send()
-            .await
         {
             Ok(response) => response.status().is_success(),
             Err(_) => false,
         }
     }
 
-    pub async fn execute_prompt(&self, prompt: &str, meaning: Option<&str>) -> Result<VibeValue> {
-        let response = self.send_to_llm(prompt).await?;
+    pub fn execute_prompt(&self, prompt: &str, meaning: Option<&str>) -> Result<VibeValue> {
+        let response = self.send_to_llm(prompt).unwrap();
         self.parse_response(&response, meaning)
     }
 
-    async fn send_to_llm(&self, prompt: &str) -> Result<String> {
+    fn send_to_llm(&self, prompt: &str) -> Result<String> {
         let request_body = json!({
             "model": "gpt-3.5-turbo",
             "messages": [
@@ -89,15 +88,16 @@ impl LlmInterface {
             .post(&format!("{}/chat/completions", self.base_url))
             .header("Content-Type", "application/json")
             .json(&request_body)
-            .send()
-            .await?;
+            .send();
 
-        if !response.status().is_success() {
-            let error_text = response.text().await?;
+        let payload = response.unwrap();
+
+        if !payload.status().is_success() {
+            let error_text = payload.text().unwrap();
             return Err(anyhow!("LLM API request failed: {}", error_text));
         }
 
-        let response_json: Value = response.json().await?;
+        let response_json: Value = payload.json()?;
 
         let content = response_json
             .get("choices")

@@ -63,7 +63,7 @@ macro_rules! generate_ollama_client_setup {
         )?;
         writeln!(
             $file,
-            "        .unwrap_or_else(|_| \"http://localhost:11223\".to_string());"
+            "        .unwrap_or_else(|_| \"http://localhost:11434\".to_string());"
         )?;
         writeln!($file, "    let model = std::env::var(\"OLLAMA_MODEL\")")?;
         writeln!(
@@ -177,6 +177,44 @@ macro_rules! generate_format_prompt_function {
     };
 }
 
+/// Generates a Cargo.toml file for VibeLang compiled projects with LLM-generated names
+#[macro_export]
+macro_rules! generate_cargo_toml_from_source {
+    ($cargo_toml_path:expr, $vibelang_source:expr, $rust_file_name:expr) => {{
+        use regex::Regex;
+        use std::collections::HashMap;
+
+        // Extract semantic annotations from VibeLang source
+        let semantic_annotations =
+            crate::compiler::macros::helpers::extract_semantic_annotations($vibelang_source);
+
+        // Generate package and binary names using LLM
+        let (package_name, binary_name) =
+            crate::compiler::macros::helpers::generate_names_with_llm(&semantic_annotations)
+                .unwrap();
+
+        let cargo_toml_content = format!(
+            r#"[package]
+name = "{}"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde_json = "1.0"
+reqwest = {{ version = "0.12", features = ["json", "blocking"] }}
+regex = "1.0"
+
+[[bin]]
+name = "{}"
+path = "{}"
+"#,
+            package_name, binary_name, $rust_file_name
+        );
+
+        std::fs::write($cargo_toml_path, cargo_toml_content)
+    }};
+}
+
 /// Generates all headers needed for a VibeLang generated file
 #[macro_export]
 macro_rules! generate_all_headers {
@@ -184,10 +222,177 @@ macro_rules! generate_all_headers {
         crate::generate_file_header!($file);
         crate::generate_imports!($file);
         crate::generate_parametric_vibe_execute_prompt!($file);
-        crate::generate_semantic_parser!($file);
-        crate::generate_extraction_utilities!($file);
         crate::generate_format_prompt_function!($file);
         crate::generate_vibe_value_enum!($file);
     };
 }
 
+pub mod helpers {
+    // Helper functions for LLM-powered naming
+    /// Extract semantic meanings from VibeLang type declarations
+    pub fn extract_semantic_annotations(source: &str) -> Vec<String> {
+        use regex::Regex;
+        let pattern = Regex::new(r#"type\s+\w+\s*=\s*Meaning(?:<\w+>)?\("([^"]+)"\)"#).unwrap();
+
+        pattern
+            .captures_iter(source)
+            .map(|cap| cap[1].to_string())
+            .collect()
+    }
+
+    /// Generate package and binary names using LLM inference
+    pub fn generate_names_with_llm(
+        semantic_annotations: &[String],
+    ) -> Result<(String, String), Box<dyn std::error::Error>> {
+        if semantic_annotations.is_empty() {
+            return Ok(("vibelang_generated".to_string(), "vibelang_bin".to_string()));
+        }
+
+        // Prepare LLM prompt with semantic context
+        let context = semantic_annotations.join(", ");
+        let prompt = format!(
+            "Given these semantic annotations from a VibeLang program: [{}], \
+            generate a semantically appropriate Rust package name (snake_case) and binary name (snake_case) \
+            that capture the main domain and purpose of the code. \
+            Consider Rust naming conventions: packages should be descriptive but concise, \
+            avoiding redundant prefixes like 'rust-' or 'lib-'. \
+            Response format: {{\"package\": \"package_name\", \"binary\": \"binary_name\"}}",
+            context
+        );
+
+        // Call LLM service (using same Ollama setup as VibeLang runtime)
+        let response = crate::compiler::macros::helpers::call_ollama_for_naming(&prompt).unwrap();
+        crate::compiler::macros::helpers::parse_naming_response(&response, semantic_annotations)
+    }
+
+    /// Call Ollama API for name generation
+    pub fn call_ollama_for_naming(prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
+        let client = reqwest::blocking::Client::new();
+        let base_url = std::env::var("OLLAMA_BASE_URL")
+            .unwrap_or_else(|_| "http://localhost:11434".to_string());
+        let model = std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| "llama3.2".to_string());
+
+        let request_body = serde_json::json!({
+            "model": model,
+            "prompt": prompt,
+            "stream": false,
+            "format": "json"
+        });
+
+        let response = client
+            .post(&format!("{}/api/generate", base_url))
+            .header("Content-Type", "application/json")
+            .json(&request_body)
+            .timeout(std::time::Duration::from_secs(30))
+            .send()?;
+
+        if let Ok(response_json) = response.json::<serde_json::Value>() {
+            if let Some(content) = response_json.get("response").and_then(|c| c.as_str()) {
+                return Ok(content.to_string());
+            }
+        }
+
+        Err("Failed to get valid response from LLM".into())
+    }
+
+    /// Parse LLM response and validate naming conventions
+    pub fn parse_naming_response(
+        response: &str,
+        fallback_annotations: &[String],
+    ) -> Result<(String, String), Box<dyn std::error::Error>> {
+        // Try to parse JSON response
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(response) {
+            if let (Some(package), Some(binary)) = (
+                parsed.get("package").and_then(|p| p.as_str()),
+                parsed.get("binary").and_then(|b| b.as_str()),
+            ) {
+                let validated_package = validate_rust_name(package);
+                let validated_binary = validate_rust_name(binary);
+                return Ok((validated_package, validated_binary));
+            }
+        }
+
+        // Fallback: generate names from semantic annotations
+        generate_fallback_names(fallback_annotations)
+    }
+
+    /// Validate and normalize Rust package/binary names
+    pub fn validate_rust_name(name: &str) -> String {
+        use regex::Regex;
+        // Convert to snake_case and ensure valid Rust identifier
+        let normalized = name
+            .to_lowercase()
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { '_' })
+            .collect::<String>();
+
+        // Remove consecutive underscores and trim
+        let cleaned = Regex::new(r"_{2,}")
+            .unwrap()
+            .replace_all(&normalized, "_")
+            .trim_matches('_')
+            .to_string();
+
+        // Ensure it doesn't start with a digit
+        if cleaned.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+            format!("pkg_{}", cleaned)
+        } else if cleaned.is_empty() {
+            "generated_package".to_string()
+        } else {
+            cleaned
+        }
+    }
+
+    /// Generate fallback names from semantic annotations
+    pub fn generate_fallback_names(
+        annotations: &[String],
+    ) -> Result<(String, String), Box<dyn std::error::Error>> {
+        use std::collections::HashMap;
+        let mut word_freq: HashMap<String, usize> = HashMap::new();
+
+        // Count word frequency across all semantic annotations
+        for annotation in annotations {
+            let words: Vec<&str> = annotation
+                .split_whitespace()
+                .filter(|w| {
+                    !["a", "an", "the", "of", "in", "and", "with", "on", "for"]
+                        .contains(&w.to_lowercase().as_str())
+                })
+                .collect();
+
+            for word in words {
+                let normalized = word.to_lowercase();
+                *word_freq.entry(normalized).or_insert(0) += 1;
+            }
+        }
+
+        // Get top 3 most frequent meaningful words
+        let mut sorted_words: Vec<_> = word_freq.into_iter().collect();
+        sorted_words.sort_by(|a, b| b.1.cmp(&a.1));
+
+        let top_words: Vec<String> = sorted_words
+            .into_iter()
+            .take(3)
+            .map(|(word, _)| word)
+            .collect();
+
+        let package_name = if top_words.is_empty() {
+            "vibelang_generated".to_string()
+        } else {
+            format!("vibelang_{}", top_words.join("_"))
+        };
+
+        let binary_name = if top_words.len() >= 2 {
+            format!("{}_{}", top_words[0], top_words[1])
+        } else if !top_words.is_empty() {
+            format!("{}_bin", top_words[0])
+        } else {
+            "generated_bin".to_string()
+        };
+
+        Ok((
+            validate_rust_name(&package_name),
+            validate_rust_name(&binary_name),
+        ))
+    }
+}

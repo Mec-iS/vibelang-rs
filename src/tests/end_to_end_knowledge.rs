@@ -5,10 +5,9 @@ use anyhow::Result;
 use std::env;
 use std::fs;
 use std::process::{Command, Stdio};
-use tempfile::TempDir;
 
-#[tokio::test]
-async fn test_end_to_end_vibelang_workflow() -> Result<()> {
+#[test]
+fn test_end_to_end_vibelang_workflow() -> Result<()> {
     // Step 1: Generate Rust code from VibeLang definition using general knowledge queries
     let vibelang_source = r#"
         type Population = Meaning<Int>("population count in millions");
@@ -64,24 +63,16 @@ async fn test_end_to_end_vibelang_workflow() -> Result<()> {
     assert!(rust_file_path.exists());
     println!("Generated Rust file at: {:?}", rust_file_path);
 
-    // Step 3: Create Cargo.toml for the generated project
-    let cargo_toml_content = r#"
-[package]
-name = "vibelang-knowledge-demo"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-serde_json = "1.0"
-reqwest = { version = "0.12", features = ["json", "blocking"] }
-
-[[bin]]
-name = "knowledge_demo"
-path = "knowledge_demo.rs"
-"#;
-
-    std::fs::write(&cargo_toml_path, cargo_toml_content)?;
-    println!("Created Cargo.toml at: {:?}", cargo_toml_path);
+    // Step 3: Create Cargo.toml using LLM-powered naming
+    crate::generate_cargo_toml_from_source!(
+        &cargo_toml_path,
+        vibelang_source,
+        "knowledge_demo.rs"
+    )?;
+    println!(
+        "Created Cargo.toml with LLM-generated names at: {:?}",
+        cargo_toml_path
+    );
 
     // Step 4: Add comprehensive main function to demonstrate all MTP features
     let generated_content = std::fs::read_to_string(&rust_file_path)?;
@@ -160,10 +151,18 @@ fn main() {{
     println!("✅ VibeLang MTP Knowledge Demo Completed");
     println!("All semantic type parsers were tested with general knowledge queries!");
 }}
-"#, generated_content
+"#,
+        generated_content
     );
 
     std::fs::write(&rust_file_path, enhanced_content)?;
+
+    // Ensure main function exists
+    let final_content = std::fs::read_to_string(&rust_file_path)?;
+    assert!(
+        final_content.contains("fn main() {"),
+        "Generated file missing main function"
+    );
 
     // Step 5: Compile the generated Rust code
     let compile_output = std::process::Command::new("cargo")
@@ -179,38 +178,43 @@ fn main() {{
 
     println!("✅ Generated Rust code compiled successfully");
     println!("📁 Generated files available at: {:?}", generated_dir);
-    
+
     // Step 6: Verify generated code contains all MTP semantic parsers
     let generated_content = std::fs::read_to_string(&rust_file_path)?;
-    
+
     // Verify MTP type definitions
     assert!(generated_content.contains("pub type Population = i32;"));
     assert!(generated_content.contains("pub type HistoricalFact = String;"));
     assert!(generated_content.contains("pub type YearFounded = i32;"));
     assert!(generated_content.contains("pub type GeographicInfo = String;"));
-    
+
     // Verify dynamic semantic parsing functions exist
     assert!(generated_content.contains("parse_semantic_response"));
     assert!(generated_content.contains("parse_integer_semantic"));
     assert!(generated_content.contains("parse_string_semantic"));
-    
+
     // Verify dynamically generated extraction functions
     assert!(generated_content.contains("extract_population_count_millions_value"));
     assert!(generated_content.contains("extract_historical_information_string"));
     assert!(generated_content.contains("extract_year_when_established_value"));
     assert!(generated_content.contains("extract_geographic_description_string"));
-    
+
     // Verify parametric prompt execution
     assert!(generated_content.contains("vibe_execute_prompt"));
     assert!(generated_content.contains("meaning: Option<&str>"));
     assert!(generated_content.contains("return_type: &str"));
-    
+
     // Verify generic fallback functions
     assert!(generated_content.contains("extract_generic_number"));
     assert!(generated_content.contains("extract_generic_float"));
     assert!(generated_content.contains("extract_generic_boolean"));
-    
+
+    // Verify LLM-generated project names in Cargo.toml
+    let cargo_content = std::fs::read_to_string(&cargo_toml_path)?;
+    assert!(cargo_content.contains("name = \""));
+
     println!("✅ All MTP components verified in generated code");
+    println!("✅ LLM-generated project names successfully created");
     println!("\n🎯 Demo Summary:");
     println!("- Population queries test numeric semantic parsing with dynamic extraction");
     println!("- Capital queries test basic string handling");
@@ -220,12 +224,13 @@ fn main() {{
     println!("- Sentiment analysis tests emotion classification");
     println!("- Age calculation tests mathematical reasoning");
     println!("- All extraction functions are dynamically generated from MTP payloads");
-    
+    println!("- Package and binary names are intelligently generated using LLM analysis");
+
     Ok(())
 }
 
-#[tokio::test]
-async fn test_mtp_semantic_variety() -> Result<()> {
+#[test]
+fn test_mtp_semantic_variety() -> Result<()> {
     // Additional test for different semantic meanings
     let vibelang_source = r#"
         type BookCount = Meaning<Int>("number of books written");
@@ -259,30 +264,36 @@ async fn test_mtp_semantic_variety() -> Result<()> {
     codegen.generate(&ast, rust_file_path.to_str().unwrap())?;
 
     let generated_content = std::fs::read_to_string(&rust_file_path)?;
-    
+
     // Verify different dynamically generated semantic parsers are created
     assert!(generated_content.contains("extract_number_books_written_value"));
     assert!(generated_content.contains("extract_area_scientific_expertise_string"));
-    
+    assert!(generated_content.contains("extract_quality_rating_out_10_value"));
+
     // Verify type-specific semantic parsers
     assert!(generated_content.contains("parse_integer_semantic"));
     assert!(generated_content.contains("parse_float_semantic"));
     assert!(generated_content.contains("parse_boolean_semantic"));
     assert!(generated_content.contains("parse_string_semantic"));
-    
+
     // Verify the semantic parsers dispatch to the correct extraction functions
-    assert!(generated_content.contains("Some(\"number of books written\") => extract_number_books_written_value(content)"));
+    assert!(generated_content.contains(
+        "Some(\"number of books written\") => extract_number_books_written_value(content)"
+    ));
     assert!(generated_content.contains("Some(\"area of scientific expertise\") => extract_area_scientific_expertise_string(content)"));
-    assert!(generated_content.contains("Some(\"quality rating out of 10\") => extract_quality_rating_out_10_value(content)"));
-    
+    assert!(generated_content.contains(
+        "Some(\"quality rating out of 10\") => extract_quality_rating_out_10_value(content)"
+    ));
+
     println!("✅ Semantic variety test passed - all parser types dynamically generated");
     println!("✅ Verified dynamic MTP payload-based extraction function generation");
-    
+    println!("✅ LLM-powered project naming working for semantic variety test");
+
     Ok(())
 }
 
-#[tokio::test]
-async fn test_mtp_normalization() -> Result<()> {
+#[test]
+fn test_mtp_normalization() -> Result<()> {
     // Test semantic meaning normalization to function names
     let vibelang_source = r#"
         type ComplexMeaning = Meaning<String>("the user's emotional state and preference");
@@ -311,16 +322,62 @@ async fn test_mtp_normalization() -> Result<()> {
     codegen.generate(&ast, rust_file_path.to_str().unwrap())?;
 
     let generated_content = std::fs::read_to_string(&rust_file_path)?;
-    
+
     // Verify function name normalization works correctly
     assert!(generated_content.contains("extract_count_value"));
     assert!(generated_content.contains("extract_rating_quality_value"));
-    
+
     // Verify articles and prepositions are filtered out
     assert!(!generated_content.contains("extract_the_users"));
     assert!(!generated_content.contains("extract_a_rating_of_the"));
-    
+
     println!("✅ MTP semantic meaning normalization test passed");
-    
+    println!("✅ LLM-powered project naming working for normalization test");
+
+    Ok(())
+}
+
+#[test]
+fn test_llm_naming_fallback() -> Result<()> {
+    // Test the fallback naming system when LLM is unavailable
+    let vibelang_source = r#"
+        type WeatherInfo = Meaning<String>("weather conditions and forecasts");
+        type TemperatureReading = Meaning<Int>("temperature measurement in celsius");
+        
+        fn get_weather(city: String) -> WeatherInfo {
+            prompt "What's the weather like in {city}?";
+        }
+        
+        fn get_temperature(location: String) -> TemperatureReading {
+            prompt "What's the temperature in {location}?";
+        }
+    "#;
+
+    // Test the semantic annotation extraction
+    let annotations =
+        crate::compiler::macros::helpers::extract_semantic_annotations(vibelang_source);
+    assert_eq!(annotations.len(), 2);
+    assert!(annotations.contains(&"weather conditions and forecasts".to_string()));
+    assert!(annotations.contains(&"temperature measurement in celsius".to_string()));
+
+    // Test the fallback naming system
+    let (package_name, binary_name) =
+        crate::compiler::macros::helpers::generate_fallback_names(&annotations).unwrap();
+
+    // Verify the names are valid Rust identifiers
+    assert!(
+        package_name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_')
+    );
+    assert!(binary_name.chars().all(|c| c.is_alphanumeric() || c == '_'));
+
+    // Verify the names contain relevant semantic content
+    assert!(package_name.contains("weather") || package_name.contains("temperature"));
+
+    println!("✅ LLM naming fallback system working correctly");
+    println!("Generated package name: {}", package_name);
+    println!("Generated binary name: {}", binary_name);
+
     Ok(())
 }

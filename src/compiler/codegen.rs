@@ -33,11 +33,10 @@ impl CodeGenerator {
                         if type_child.node_type == AstNodeType::MeaningType {
                             if let Some(meaning) = type_child.get_string("meaning") {
                                 let base_type = self.determine_base_type(type_child);
-                                let normalized_name = self.normalize_meaning_to_function_name(meaning);
-                                self.semantic_meanings.insert(
-                                    meaning.clone(), 
-                                    (base_type, normalized_name)
-                                );
+                                let normalized_name =
+                                    self.normalize_meaning_to_function_name(meaning);
+                                self.semantic_meanings
+                                    .insert(meaning.clone(), (base_type, normalized_name));
                             }
                         }
                     }
@@ -54,7 +53,9 @@ impl CodeGenerator {
             .map(|c| if c.is_alphanumeric() { c } else { '_' })
             .collect::<String>()
             .split('_')
-            .filter(|s| !s.is_empty() && s != &"a" && s != &"an" && s != &"the" && s != &"of" && s != &"in")
+            .filter(|s| {
+                !s.is_empty() && s != &"a" && s != &"an" && s != &"the" && s != &"of" && s != &"in"
+            })
             .collect::<Vec<_>>()
             .join("_")
     }
@@ -91,32 +92,50 @@ impl CodeGenerator {
         // Generate basic headers and imports
         crate::generate_file_header!(file);
         crate::generate_imports!(file);
-        
+
         // Generate parametric vibe_execute_prompt
         crate::generate_parametric_vibe_execute_prompt!(file);
-        
+
         // Generate dynamic semantic parser based on collected meanings
         self.generate_dynamic_semantic_parser(file)?;
-        
+
         // Generate dynamic extraction utilities based on MTP payloads
         self.generate_dynamic_extraction_utilities(file)?;
-        
+
         // Generate other utilities
         crate::generate_format_prompt_function!(file);
         crate::generate_vibe_value_enum!(file);
-        
+
         Ok(())
     }
 
     /// Generate semantic parser that dispatches to dynamically created extraction functions
     fn generate_dynamic_semantic_parser(&self, file: &mut File) -> Result<()> {
-        writeln!(file, "fn parse_semantic_response(content: &str, meaning: Option<&str>, return_type: &str) -> VibeValue {{")?;
-        writeln!(file, "    // Parse based on resolved primitive type, not type alias")?;
+        writeln!(
+            file,
+            "fn parse_semantic_response(content: &str, meaning: Option<&str>, return_type: &str) -> VibeValue {{"
+        )?;
+        writeln!(
+            file,
+            "    // Parse based on resolved primitive type, not type alias"
+        )?;
         writeln!(file, "    match return_type {{")?;
-        writeln!(file, "        \"i32\" => parse_integer_semantic(content, meaning),")?;
-        writeln!(file, "        \"f64\" => parse_float_semantic(content, meaning),")?;
-        writeln!(file, "        \"bool\" => parse_boolean_semantic(content, meaning),")?;
-        writeln!(file, "        _ => parse_string_semantic(content, meaning),")?;
+        writeln!(
+            file,
+            "        \"i32\" => parse_integer_semantic(content, meaning),"
+        )?;
+        writeln!(
+            file,
+            "        \"f64\" => parse_float_semantic(content, meaning),"
+        )?;
+        writeln!(
+            file,
+            "        \"bool\" => parse_boolean_semantic(content, meaning),"
+        )?;
+        writeln!(
+            file,
+            "        _ => parse_string_semantic(content, meaning),"
+        )?;
         writeln!(file, "    }}")?;
         writeln!(file, "}}")?;
         writeln!(file)?;
@@ -131,22 +150,35 @@ impl CodeGenerator {
     }
 
     fn generate_integer_semantic_parser(&self, file: &mut File) -> Result<()> {
-        writeln!(file, "fn parse_integer_semantic(content: &str, meaning: Option<&str>) -> VibeValue {{")?;
+        writeln!(
+            file,
+            "fn parse_integer_semantic(content: &str, meaning: Option<&str>) -> VibeValue {{"
+        )?;
         writeln!(file, "    // Try direct parsing first")?;
-        writeln!(file, "    if let Ok(value) = content.trim().parse::<i32>() {{")?;
+        writeln!(
+            file,
+            "    if let Ok(value) = content.trim().parse::<i32>() {{"
+        )?;
         writeln!(file, "        return VibeValue::Number(value as f64);")?;
         writeln!(file, "    }}")?;
         writeln!(file)?;
-        writeln!(file, "    // Extract number based on semantic meaning from MTP payload")?;
+        writeln!(
+            file,
+            "    // Extract number based on semantic meaning from MTP payload"
+        )?;
         writeln!(file, "    let extracted = match meaning {{")?;
-        
+
         // Generate match arms for each integer semantic meaning
         for (meaning, (rust_type, normalized_name)) in &self.semantic_meanings {
             if rust_type == "i32" {
-                writeln!(file, "        Some(\"{}\") => extract_{}_value(content),", meaning, normalized_name)?;
+                writeln!(
+                    file,
+                    "        Some(\"{}\") => extract_{}_value(content),",
+                    meaning, normalized_name
+                )?;
             }
         }
-        
+
         writeln!(file, "        _ => extract_generic_number(content),")?;
         writeln!(file, "    }};")?;
         writeln!(file)?;
@@ -157,20 +189,30 @@ impl CodeGenerator {
     }
 
     fn generate_float_semantic_parser(&self, file: &mut File) -> Result<()> {
-        writeln!(file, "fn parse_float_semantic(content: &str, meaning: Option<&str>) -> VibeValue {{")?;
-        writeln!(file, "    if let Ok(value) = content.trim().parse::<f64>() {{")?;
+        writeln!(
+            file,
+            "fn parse_float_semantic(content: &str, meaning: Option<&str>) -> VibeValue {{"
+        )?;
+        writeln!(
+            file,
+            "    if let Ok(value) = content.trim().parse::<f64>() {{"
+        )?;
         writeln!(file, "        return VibeValue::Number(value);")?;
         writeln!(file, "    }}")?;
         writeln!(file)?;
         writeln!(file, "    let extracted = match meaning {{")?;
-        
+
         // Generate match arms for each float semantic meaning
         for (meaning, (rust_type, normalized_name)) in &self.semantic_meanings {
             if rust_type == "f64" {
-                writeln!(file, "        Some(\"{}\") => extract_{}_value(content),", meaning, normalized_name)?;
+                writeln!(
+                    file,
+                    "        Some(\"{}\") => extract_{}_value(content),",
+                    meaning, normalized_name
+                )?;
             }
         }
-        
+
         writeln!(file, "        _ => extract_generic_float(content),")?;
         writeln!(file, "    }};")?;
         writeln!(file)?;
@@ -181,27 +223,43 @@ impl CodeGenerator {
     }
 
     fn generate_boolean_semantic_parser(&self, file: &mut File) -> Result<()> {
-        writeln!(file, "fn parse_boolean_semantic(content: &str, meaning: Option<&str>) -> VibeValue {{")?;
+        writeln!(
+            file,
+            "fn parse_boolean_semantic(content: &str, meaning: Option<&str>) -> VibeValue {{"
+        )?;
         writeln!(file, "    let content_lower = content.to_lowercase();")?;
         writeln!(file)?;
         writeln!(file, "    // Direct boolean parsing")?;
-        writeln!(file, "    if content_lower.contains(\"true\") || content_lower.contains(\"yes\") {{")?;
+        writeln!(
+            file,
+            "    if content_lower.contains(\"true\") || content_lower.contains(\"yes\") {{"
+        )?;
         writeln!(file, "        return VibeValue::Boolean(true);")?;
         writeln!(file, "    }}")?;
-        writeln!(file, "    if content_lower.contains(\"false\") || content_lower.contains(\"no\") {{")?;
+        writeln!(
+            file,
+            "    if content_lower.contains(\"false\") || content_lower.contains(\"no\") {{"
+        )?;
         writeln!(file, "        return VibeValue::Boolean(false);")?;
         writeln!(file, "    }}")?;
         writeln!(file)?;
-        writeln!(file, "    // Semantic-based boolean extraction from MTP payload")?;
+        writeln!(
+            file,
+            "    // Semantic-based boolean extraction from MTP payload"
+        )?;
         writeln!(file, "    let result = match meaning {{")?;
-        
+
         // Generate match arms for each boolean semantic meaning
         for (meaning, (rust_type, normalized_name)) in &self.semantic_meanings {
             if rust_type == "bool" {
-                writeln!(file, "        Some(\"{}\") => extract_{}_boolean(content),", meaning, normalized_name)?;
+                writeln!(
+                    file,
+                    "        Some(\"{}\") => extract_{}_boolean(content),",
+                    meaning, normalized_name
+                )?;
             }
         }
-        
+
         writeln!(file, "        _ => extract_generic_boolean(content),")?;
         writeln!(file, "    }};")?;
         writeln!(file)?;
@@ -212,16 +270,23 @@ impl CodeGenerator {
     }
 
     fn generate_string_semantic_parser(&self, file: &mut File) -> Result<()> {
-        writeln!(file, "fn parse_string_semantic(content: &str, meaning: Option<&str>) -> VibeValue {{")?;
+        writeln!(
+            file,
+            "fn parse_string_semantic(content: &str, meaning: Option<&str>) -> VibeValue {{"
+        )?;
         writeln!(file, "    let processed = match meaning {{")?;
-        
+
         // Generate match arms for each string semantic meaning
         for (meaning, (rust_type, normalized_name)) in &self.semantic_meanings {
             if rust_type == "String" {
-                writeln!(file, "        Some(\"{}\") => extract_{}_string(content),", meaning, normalized_name)?;
+                writeln!(
+                    file,
+                    "        Some(\"{}\") => extract_{}_string(content),",
+                    meaning, normalized_name
+                )?;
             }
         }
-        
+
         writeln!(file, "        _ => content.trim().to_string(),")?;
         writeln!(file, "    }};")?;
         writeln!(file)?;
@@ -233,15 +298,22 @@ impl CodeGenerator {
 
     /// Generate extraction functions dynamically based on MTP semantic meanings
     fn generate_dynamic_extraction_utilities(&self, file: &mut File) -> Result<()> {
-        writeln!(file, "// Dynamically generated extraction functions based on MTP payloads")?;
+        writeln!(
+            file,
+            "// Dynamically generated extraction functions based on MTP payloads"
+        )?;
         writeln!(file)?;
 
         // Generate extraction functions for each semantic meaning
         for (meaning, (rust_type, normalized_name)) in &self.semantic_meanings {
             match rust_type.as_str() {
-                "i32" => self.generate_integer_extraction_function(file, meaning, normalized_name)?,
+                "i32" => {
+                    self.generate_integer_extraction_function(file, meaning, normalized_name)?
+                }
                 "f64" => self.generate_float_extraction_function(file, meaning, normalized_name)?,
-                "bool" => self.generate_boolean_extraction_function(file, meaning, normalized_name)?,
+                "bool" => {
+                    self.generate_boolean_extraction_function(file, meaning, normalized_name)?
+                }
                 _ => self.generate_string_extraction_function(file, meaning, normalized_name)?,
             }
         }
@@ -252,34 +324,72 @@ impl CodeGenerator {
         Ok(())
     }
 
-    fn generate_integer_extraction_function(&self, file: &mut File, meaning: &str, normalized_name: &str) -> Result<()> {
-        writeln!(file, "fn extract_{}_value(text: &str) -> i32 {{", normalized_name)?;
-        writeln!(file, "    // Extract integer for semantic meaning: \"{}\"", meaning)?;
-        
+    fn generate_integer_extraction_function(
+        &self,
+        file: &mut File,
+        meaning: &str,
+        normalized_name: &str,
+    ) -> Result<()> {
+        writeln!(
+            file,
+            "fn extract_{}_value(text: &str) -> i32 {{",
+            normalized_name
+        )?;
+        writeln!(
+            file,
+            "    // Extract integer for semantic meaning: \"{}\"",
+            meaning
+        )?;
+
         // Generate specific extraction logic based on meaning content
         if meaning.contains("books") || meaning.contains("count") || meaning.contains("number") {
-            writeln!(file, "    // Look for book count or general number patterns")?;
+            writeln!(
+                file,
+                "    // Look for book count or general number patterns"
+            )?;
             writeln!(file, "    text.split_whitespace()")?;
             writeln!(file, "        .find_map(|word| word.parse::<i32>().ok())")?;
             writeln!(file, "        .unwrap_or(0)")?;
-        } else if meaning.contains("year") || meaning.contains("age") || meaning.contains("founded") || meaning.contains("established") {
-            writeln!(file, "    // Look for year/age patterns in reasonable ranges")?;
+        } else if meaning.contains("year")
+            || meaning.contains("age")
+            || meaning.contains("founded")
+            || meaning.contains("established")
+        {
+            writeln!(
+                file,
+                "    // Look for year/age patterns in reasonable ranges"
+            )?;
             writeln!(file, "    for word in text.split_whitespace() {{")?;
-            writeln!(file, "        if let Ok(value) = word.chars().filter(|c| c.is_ascii_digit()).collect::<String>().parse::<i32>() {{")?;
+            writeln!(
+                file,
+                "        if let Ok(value) = word.chars().filter(|c| c.is_ascii_digit()).collect::<String>().parse::<i32>() {{"
+            )?;
             if meaning.contains("age") {
-                writeln!(file, "            if value > 0 && value < 150 {{ return value; }}")?;
+                writeln!(
+                    file,
+                    "            if value > 0 && value < 150 {{ return value; }}"
+                )?;
             } else {
-                writeln!(file, "            if value >= 1000 && value <= 2100 {{ return value; }}")?;
+                writeln!(
+                    file,
+                    "            if value >= 1000 && value <= 2100 {{ return value; }}"
+                )?;
             }
             writeln!(file, "        }}")?;
             writeln!(file, "    }}")?;
             writeln!(file, "    0")?;
         } else if meaning.contains("population") {
-            writeln!(file, "    // Look for population numbers, possibly in millions")?;
+            writeln!(
+                file,
+                "    // Look for population numbers, possibly in millions"
+            )?;
             writeln!(file, "    text.split_whitespace()")?;
             writeln!(file, "        .find_map(|word| {{")?;
             writeln!(file, "            word.chars()")?;
-            writeln!(file, "                .filter(|c| c.is_ascii_digit() || *c == '.')")?;
+            writeln!(
+                file,
+                "                .filter(|c| c.is_ascii_digit() || *c == '.')"
+            )?;
             writeln!(file, "                .collect::<String>()")?;
             writeln!(file, "                .parse::<f64>().ok()")?;
             writeln!(file, "                .map(|f| f as i32)")?;
@@ -289,93 +399,189 @@ impl CodeGenerator {
             writeln!(file, "    // Generic integer extraction")?;
             writeln!(file, "    extract_generic_number(text)")?;
         }
-        
+
         writeln!(file, "}}")?;
         writeln!(file)?;
         Ok(())
     }
 
-    fn generate_float_extraction_function(&self, file: &mut File, meaning: &str, normalized_name: &str) -> Result<()> {
-        writeln!(file, "fn extract_{}_value(text: &str) -> f64 {{", normalized_name)?;
-        writeln!(file, "    // Extract float for semantic meaning: \"{}\"", meaning)?;
-        
+    fn generate_float_extraction_function(
+        &self,
+        file: &mut File,
+        meaning: &str,
+        normalized_name: &str,
+    ) -> Result<()> {
+        writeln!(
+            file,
+            "fn extract_{}_value(text: &str) -> f64 {{",
+            normalized_name
+        )?;
+        writeln!(
+            file,
+            "    // Extract float for semantic meaning: \"{}\"",
+            meaning
+        )?;
+
         if meaning.contains("rating") || meaning.contains("scale") || meaning.contains("quality") {
-            writeln!(file, "    // Look for rating patterns: \"4.5/5\", \"8 out of 10\", \"7.2\"")?;
+            writeln!(
+                file,
+                "    // Look for rating patterns: \"4.5/5\", \"8 out of 10\", \"7.2\""
+            )?;
             writeln!(file, "    text.split_whitespace()")?;
             writeln!(file, "        .find_map(|word| {{")?;
             writeln!(file, "            word.chars()")?;
-            writeln!(file, "                .filter(|c| c.is_ascii_digit() || *c == '.')")?;
+            writeln!(
+                file,
+                "                .filter(|c| c.is_ascii_digit() || *c == '.')"
+            )?;
             writeln!(file, "                .collect::<String>()")?;
             writeln!(file, "                .parse::<f64>().ok()")?;
             writeln!(file, "        }})")?;
             writeln!(file, "        .unwrap_or(0.0)")?;
         } else if meaning.contains("price") || meaning.contains("cost") {
-            writeln!(file, "    // Look for price patterns: \"$25.99\", \"25.99 USD\"")?;
+            writeln!(
+                file,
+                "    // Look for price patterns: \"$25.99\", \"25.99 USD\""
+            )?;
             writeln!(file, "    text.split_whitespace()")?;
             writeln!(file, "        .find_map(|word| {{")?;
             writeln!(file, "            word.chars()")?;
-            writeln!(file, "                .filter(|c| c.is_ascii_digit() || *c == '.')")?;
+            writeln!(
+                file,
+                "                .filter(|c| c.is_ascii_digit() || *c == '.')"
+            )?;
             writeln!(file, "                .collect::<String>()")?;
             writeln!(file, "                .parse::<f64>().ok()")?;
             writeln!(file, "        }})")?;
             writeln!(file, "        .unwrap_or(0.0)")?;
         } else if meaning.contains("percentage") || meaning.contains("percent") {
-            writeln!(file, "    // Look for percentage patterns: \"75%\", \"75 percent\"")?;
+            writeln!(
+                file,
+                "    // Look for percentage patterns: \"75%\", \"75 percent\""
+            )?;
             writeln!(file, "    text.split_whitespace()")?;
             writeln!(file, "        .find_map(|word| {{")?;
-            writeln!(file, "            word.trim_end_matches('%').parse::<f64>().ok()")?;
+            writeln!(
+                file,
+                "            word.trim_end_matches('%').parse::<f64>().ok()"
+            )?;
             writeln!(file, "        }})")?;
             writeln!(file, "        .unwrap_or(0.0)")?;
         } else {
             writeln!(file, "    // Generic float extraction")?;
             writeln!(file, "    extract_generic_float(text)")?;
         }
-        
+
         writeln!(file, "}}")?;
         writeln!(file)?;
         Ok(())
     }
 
-    fn generate_boolean_extraction_function(&self, file: &mut File, meaning: &str, normalized_name: &str) -> Result<()> {
-        writeln!(file, "fn extract_{}_boolean(text: &str) -> bool {{", normalized_name)?;
-        writeln!(file, "    // Extract boolean for semantic meaning: \"{}\"", meaning)?;
+    fn generate_boolean_extraction_function(
+        &self,
+        file: &mut File,
+        meaning: &str,
+        normalized_name: &str,
+    ) -> Result<()> {
+        writeln!(
+            file,
+            "fn extract_{}_boolean(text: &str) -> bool {{",
+            normalized_name
+        )?;
+        writeln!(
+            file,
+            "    // Extract boolean for semantic meaning: \"{}\"",
+            meaning
+        )?;
         writeln!(file, "    let text_lower = text.to_lowercase();")?;
-        
+
         if meaning.contains("available") || meaning.contains("availability") {
-            writeln!(file, "    let available_words = [\"available\", \"in stock\", \"yes\", \"true\", \"ready\", \"open\"];")?;
-            writeln!(file, "    available_words.iter().any(|&word| text_lower.contains(word))")?;
+            writeln!(
+                file,
+                "    let available_words = [\"available\", \"in stock\", \"yes\", \"true\", \"ready\", \"open\"];"
+            )?;
+            writeln!(
+                file,
+                "    available_words.iter().any(|&word| text_lower.contains(word))"
+            )?;
         } else if meaning.contains("recommendation") || meaning.contains("recommend") {
-            writeln!(file, "    let recommend_words = [\"recommend\", \"suggest\", \"yes\", \"should\", \"good\", \"advised\"];")?;
-            writeln!(file, "    recommend_words.iter().any(|&word| text_lower.contains(word))")?;
+            writeln!(
+                file,
+                "    let recommend_words = [\"recommend\", \"suggest\", \"yes\", \"should\", \"good\", \"advised\"];"
+            )?;
+            writeln!(
+                file,
+                "    recommend_words.iter().any(|&word| text_lower.contains(word))"
+            )?;
         } else if meaning.contains("sentiment") {
-            writeln!(file, "    let positive_words = [\"positive\", \"good\", \"happy\", \"excellent\", \"great\"];")?;
-            writeln!(file, "    positive_words.iter().any(|&word| text_lower.contains(word))")?;
+            writeln!(
+                file,
+                "    let positive_words = [\"positive\", \"good\", \"happy\", \"excellent\", \"great\"];"
+            )?;
+            writeln!(
+                file,
+                "    positive_words.iter().any(|&word| text_lower.contains(word))"
+            )?;
         } else {
             writeln!(file, "    // Generic boolean extraction")?;
-            writeln!(file, "    text_lower.contains(\"yes\") || text_lower.contains(\"true\") || text_lower.contains(\"positive\")")?;
+            writeln!(
+                file,
+                "    text_lower.contains(\"yes\") || text_lower.contains(\"true\") || text_lower.contains(\"positive\")"
+            )?;
         }
-        
+
         writeln!(file, "}}")?;
         writeln!(file)?;
         Ok(())
     }
 
-    fn generate_string_extraction_function(&self, file: &mut File, meaning: &str, normalized_name: &str) -> Result<()> {
-        writeln!(file, "fn extract_{}_string(text: &str) -> String {{", normalized_name)?;
-        writeln!(file, "    // Extract string for semantic meaning: \"{}\"", meaning)?;
-        
+    fn generate_string_extraction_function(
+        &self,
+        file: &mut File,
+        meaning: &str,
+        normalized_name: &str,
+    ) -> Result<()> {
+        writeln!(
+            file,
+            "fn extract_{}_string(text: &str) -> String {{",
+            normalized_name
+        )?;
+        writeln!(
+            file,
+            "    // Extract string for semantic meaning: \"{}\"",
+            meaning
+        )?;
+
         if meaning.contains("field") || meaning.contains("area") || meaning.contains("expertise") {
-            writeln!(file, "    // Extract field/area of expertise - usually a single specialized term")?;
+            writeln!(
+                file,
+                "    // Extract field/area of expertise - usually a single specialized term"
+            )?;
             writeln!(file, "    text.split_whitespace()")?;
-            writeln!(file, "        .find(|word| word.len() > 3 && word.chars().all(|c| c.is_alphabetic()))")?;
+            writeln!(
+                file,
+                "        .find(|word| word.len() > 3 && word.chars().all(|c| c.is_alphabetic()))"
+            )?;
             writeln!(file, "        .unwrap_or(\"unknown\")")?;
             writeln!(file, "        .to_string()")?;
-        } else if meaning.contains("description") || meaning.contains("information") || meaning.contains("geographic") {
-            writeln!(file, "    // Extract descriptive information - keep full text but trim")?;
+        } else if meaning.contains("description")
+            || meaning.contains("information")
+            || meaning.contains("geographic")
+        {
+            writeln!(
+                file,
+                "    // Extract descriptive information - keep full text but trim"
+            )?;
             writeln!(file, "    text.trim().to_string()")?;
         } else if meaning.contains("summary") {
-            writeln!(file, "    // Extract summary - first sentence or limited length")?;
-            writeln!(file, "    if let Some(first_sentence) = text.split('.').next() {{")?;
+            writeln!(
+                file,
+                "    // Extract summary - first sentence or limited length"
+            )?;
+            writeln!(
+                file,
+                "    if let Some(first_sentence) = text.split('.').next() {{"
+            )?;
             writeln!(file, "        first_sentence.trim().to_string()")?;
             writeln!(file, "    }} else if text.len() > 100 {{")?;
             writeln!(file, "        format!(\"{{}}...\", &text[..97])")?;
@@ -383,8 +589,14 @@ impl CodeGenerator {
             writeln!(file, "        text.trim().to_string()")?;
             writeln!(file, "    }}")?;
         } else if meaning.contains("historical") {
-            writeln!(file, "    // Extract historical facts, keep first sentence or up to 200 chars")?;
-            writeln!(file, "    if let Some(first_sentence) = text.split('.').next() {{")?;
+            writeln!(
+                file,
+                "    // Extract historical facts, keep first sentence or up to 200 chars"
+            )?;
+            writeln!(
+                file,
+                "    if let Some(first_sentence) = text.split('.').next() {{"
+            )?;
             writeln!(file, "        first_sentence.trim().to_string()")?;
             writeln!(file, "    }} else if text.len() > 200 {{")?;
             writeln!(file, "        format!(\"{{}}...\", &text[..197])")?;
@@ -395,7 +607,7 @@ impl CodeGenerator {
             writeln!(file, "    // Generic string extraction")?;
             writeln!(file, "    text.trim().to_string()")?;
         }
-        
+
         writeln!(file, "}}")?;
         writeln!(file)?;
         Ok(())
@@ -404,27 +616,30 @@ impl CodeGenerator {
     fn generate_generic_extraction_functions(&self, file: &mut File) -> Result<()> {
         writeln!(file, "// Generic fallback extraction functions")?;
         writeln!(file)?;
-        
+
         writeln!(file, "fn extract_generic_number(text: &str) -> i32 {{")?;
         writeln!(file, "    text.split_whitespace()")?;
         writeln!(file, "        .find_map(|word| word.parse::<i32>().ok())")?;
         writeln!(file, "        .unwrap_or(0)")?;
         writeln!(file, "}}")?;
         writeln!(file)?;
-        
+
         writeln!(file, "fn extract_generic_float(text: &str) -> f64 {{")?;
         writeln!(file, "    text.split_whitespace()")?;
         writeln!(file, "        .find_map(|word| word.parse::<f64>().ok())")?;
         writeln!(file, "        .unwrap_or(0.0)")?;
         writeln!(file, "}}")?;
         writeln!(file)?;
-        
+
         writeln!(file, "fn extract_generic_boolean(text: &str) -> bool {{")?;
         writeln!(file, "    let text_lower = text.to_lowercase();")?;
-        writeln!(file, "    text_lower.contains(\"true\") || text_lower.contains(\"yes\") || text_lower.contains(\"positive\")")?;
+        writeln!(
+            file,
+            "    text_lower.contains(\"true\") || text_lower.contains(\"yes\") || text_lower.contains(\"positive\")"
+        )?;
         writeln!(file, "}}")?;
         writeln!(file)?;
-        
+
         Ok(())
     }
 
@@ -552,7 +767,7 @@ impl CodeGenerator {
         if let Some(resolved_type) = self.type_aliases.get(type_name) {
             return resolved_type.clone();
         }
-        
+
         // If not found in aliases, return the original type name
         // (could be a primitive type already)
         type_name.to_string()
@@ -561,7 +776,7 @@ impl CodeGenerator {
     fn generate_type_conversion(&mut self, file: &mut File, return_type: &str) -> Result<()> {
         // Resolve type alias to underlying type
         let resolved_type = self.resolve_type_alias(return_type);
-        
+
         match resolved_type.as_str() {
             "i32" => {
                 writeln!(file, "return match prompt_result {{")?;
@@ -569,7 +784,10 @@ impl CodeGenerator {
                 self.write_indent(file)?;
                 writeln!(file, "VibeValue::Number(n) => n as i32,")?;
                 self.write_indent(file)?;
-                writeln!(file, "VibeValue::String(s) => s.parse::<i32>().unwrap_or(0),")?;
+                writeln!(
+                    file,
+                    "VibeValue::String(s) => s.parse::<i32>().unwrap_or(0),"
+                )?;
                 self.write_indent(file)?;
                 writeln!(file, "VibeValue::Boolean(b) => if b {{ 1 }} else {{ 0 }},")?;
                 self.write_indent(file)?;
@@ -584,9 +802,15 @@ impl CodeGenerator {
                 self.write_indent(file)?;
                 writeln!(file, "VibeValue::Number(n) => n,")?;
                 self.write_indent(file)?;
-                writeln!(file, "VibeValue::String(s) => s.parse::<f64>().unwrap_or(0.0),")?;
+                writeln!(
+                    file,
+                    "VibeValue::String(s) => s.parse::<f64>().unwrap_or(0.0),"
+                )?;
                 self.write_indent(file)?;
-                writeln!(file, "VibeValue::Boolean(b) => if b {{ 1.0 }} else {{ 0.0 }},")?;
+                writeln!(
+                    file,
+                    "VibeValue::Boolean(b) => if b {{ 1.0 }} else {{ 0.0 }},"
+                )?;
                 self.write_indent(file)?;
                 writeln!(file, "_ => 0.0,")?;
                 self.indent_level -= 1;
@@ -599,7 +823,10 @@ impl CodeGenerator {
                 self.write_indent(file)?;
                 writeln!(file, "VibeValue::Boolean(b) => b,")?;
                 self.write_indent(file)?;
-                writeln!(file, "VibeValue::String(s) => s.to_lowercase().contains(\"true\") || s.to_lowercase().contains(\"yes\"),")?;
+                writeln!(
+                    file,
+                    "VibeValue::String(s) => s.to_lowercase().contains(\"true\") || s.to_lowercase().contains(\"yes\"),"
+                )?;
                 self.write_indent(file)?;
                 writeln!(file, "VibeValue::Number(n) => n != 0.0,")?;
                 self.write_indent(file)?;
@@ -996,7 +1223,7 @@ impl CodeGenerator {
 
             let base_type = self.determine_base_type(child);
             writeln!(file, "pub type {} = {};", type_name, base_type)?;
-            
+
             // Store the alias mapping for later resolution
             self.type_aliases.insert(type_name.clone(), base_type);
         }

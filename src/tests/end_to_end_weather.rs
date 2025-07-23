@@ -7,8 +7,8 @@ use std::fs;
 use std::process::{Command, Stdio};
 use tempfile::TempDir;
 
-#[tokio::test]
-async fn test_end_to_end_vibelang_workflow() -> Result<()> {
+#[test]
+fn test_end_to_end_vibelang_workflow() -> Result<()> {
     // Step 1: Generate Rust code from VibeLang definition
     let vibelang_source = r#"
         type Weather = Meaning<String>("weather description");
