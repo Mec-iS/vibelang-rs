@@ -1,0 +1,36 @@
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT = _{ "//" ~ (!("\r" | "\n") ~ ANY)* }
+
+Identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+StringLiteral = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+IntLiteral = @{ "-"? ~ ASCII_DIGIT+ }
+FloatLiteral = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
+BoolLiteral = @{ "true" | "false" }
+
+Program = { SOI ~ Declaration* ~ EOI }
+
+Declaration = { FunctionDecl | TypeDecl | ClassDecl }
+
+Type = { MeaningType | BasicType }
+BasicType = { Identifier }
+MeaningType = { "Meaning" ~ "<" ~ Type ~ ">" ~ "(" ~ StringLiteral ~ ")" }
+
+TypeDecl = { "type" ~ Identifier ~ "=" ~ Type ~ ";" }
+ClassDecl = { "class" ~ Identifier ~ "{" ~ (MemberVar | FunctionDecl)* ~ "}"}
+MemberVar = { Identifier ~ ":" ~ Type ~ ";" }
+
+FunctionDecl = { "fn" ~ Identifier ~ "(" ~ ParamList? ~ ")" ~ ("->" ~ Type)? ~ Block }
+ParamList = { Parameter ~ ("," ~ Parameter)* }
+Parameter = { Identifier ~ ":" ~ Type }
+
+Block = { "{" ~ Statement* ~ "}" }
+Statement = { VarDecl | ReturnStmt | PromptStmt | ExprStmt }
+PromptStmt = { "prompt" ~ StringLiteral ~ ";" }
+
+VarDecl = { "let" ~ Identifier ~ (":" ~ Type)? ~ "=" ~ Expression ~ ";" }
+ReturnStmt = { "return" ~ Expression? ~ ";" }
+ExprStmt = { Expression ~ ";" }
+
+Expression = { CallExpr | Literal | Identifier }
+CallExpr = { Identifier ~ "(" ~ (Expression ~ ("," ~ Expression)*)? ~ ")" }
+Literal = { StringLiteral | IntLiteral | FloatLiteral | BoolLiteral }

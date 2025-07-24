@@ -1,6 +1,6 @@
 [package]
 name = "vibelang"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
 
 [dependencies]
@@ -10,19 +10,15 @@ reqwest = { version = "0.12", features = ["json", "blocking"] }
 clap = { version = "4.0", features = ["derive"] }
 anyhow = "1.0"
 thiserror = "1.0"
-libloading = "0.8"
 pest = "2.7"
 pest_derive = "2.7"
-curl = "0.4"
-tempfile = "3.0"
+tera = "1.19"
+once_cell = "1.19"
 regex = "1.11.1"
-
-[dev-dependencies]
-tempfile = "3.0"
 
 [lib]
 name = "vibelang"
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [profile.test]
 debug = 1

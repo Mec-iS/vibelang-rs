@@ -1,0 +1,43 @@
+// A comprehensive example showcasing various Meaning-Oriented Programming (MTP) features.
+
+// --- Semantic Type Aliases ---
+// These types tell the compiler and runtime what the data represents.
+type Population = Meaning<Int>("population count in millions");
+type HistoricalFact = Meaning<String>("historical information");
+type YearFounded = Meaning<Int>("year when established");
+type GeographicInfo = Meaning<String>("geographic description");
+
+// --- VibeLang Functions ---
+
+// Functions for knowledge retrieval about a country
+fn get_population(country: String) -> Population {
+    prompt "What is the current population of {country} in millions? Reply with just the number.";
+}
+
+// Note: This function uses a raw String return type without a specific Meaning.
+fn get_capital(country: String) -> String {
+    prompt "What is the capital city of {country}? Reply with just the city name.";
+}
+
+fn get_founding_year(country: String) -> YearFounded {
+    prompt "In what year was {country} founded or established as a nation? Reply with just the year.";
+}
+
+// Function to get information about a person or landmark
+fn get_historical_fact(person: String) -> HistoricalFact {
+    prompt "Tell me one interesting historical fact about {person}. Keep it to one sentence.";
+}
+
+fn get_geographic_info(landmark: String) -> GeographicInfo {
+    prompt "Describe the geographic location and features of {landmark} in one sentence.";
+}
+
+// Function for text analysis
+fn analyze_sentiment(text: String) -> Meaning<String>("emotional sentiment") {
+    prompt "Analyze the emotional sentiment of this text: '{text}'. Reply with either 'positive', 'negative', or 'neutral'.";
+}
+
+// Function for simple calculation
+fn calculate_age(birth_year: Int) -> Meaning<Int>("age calculation") {
+    prompt "If someone was born in {birth_year}, how old would they be in 2025? Reply with just the number.";
+}

@@ -1,6 +1,10 @@
 
 ```
-$ RUST_BACKTRACE=1 cargo test tests::integration --
+$ cargo build
+```
+Run an example:
+```
+$ cargo run -- examples/knowledge_retrieval.vibe --output-dir ./generated
 ```
 
 
