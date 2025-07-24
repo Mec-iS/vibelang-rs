@@ -1,10 +1,17 @@
-
+# VibeLang in Videland
+Build:
 ```
 $ cargo build
 ```
 Run an example:
 ```
 $ cargo run -- examples/knowledge_retrieval.vibe --output-dir ./generated
+```
+Run tests:
+```
+$ cargo test
+# OR
+$ cargo test --test test_unit_extra
 ```
 
 
