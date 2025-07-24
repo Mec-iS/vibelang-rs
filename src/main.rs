@@ -37,15 +37,15 @@ fn main() -> Result<()> {
     let codegen = CodeGenerator::new();
     let generated_code = codegen.generate(&ast)?;
 
-    // 3. Set up the output project
+    // 3. Set up the output project using the ProjectBuilder
     println!("Creating project structure at: {:?}", &args.output_dir);
     let llm_client = LlmClient::new(config)?;
-    let project_builder = ProjectBuilder::new(llm_client);
+    let project_builder = ProjectBuilder::new(&llm_client);
 
-    project_builder.create_project(
+    // Delegate all project creation logic to the builder.
+    project_builder.build(
         &args.output_dir,
         &source,
-        "main.rs",
         &generated_code,
     )?;
 

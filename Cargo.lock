@@ -1919,6 +1919,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "tempfile",
  "tera",
  "thiserror 1.0.69",
 ]
