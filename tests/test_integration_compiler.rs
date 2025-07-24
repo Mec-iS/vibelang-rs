@@ -1,9 +1,11 @@
 // tests/compiler_tests.rs
 use anyhow::Result;
-use vibelang::compiler::{codegen::CodeGenerator, parser::parse_source, project_builder::ProjectBuilder};
+use tempfile::tempdir;
+use vibelang::compiler::{
+    codegen::CodeGenerator, parser::parse_source, project_builder::ProjectBuilder,
+};
 use vibelang::config::Config;
 use vibelang::runtime::client::LlmClient;
-use tempfile::tempdir;
 
 #[test]
 fn test_end_to_end_compilation() -> Result<()> {
@@ -22,7 +24,7 @@ fn test_end_to_end_compilation() -> Result<()> {
     let llm_client = LlmClient::new(config)?;
     let ast = parse_source(vibe_source)?;
     let generated_code = CodeGenerator::new().generate(&ast)?;
-    
+
     let builder = ProjectBuilder::new(&llm_client);
     builder.build(output_path, vibe_source, &generated_code)?;
 
@@ -34,8 +36,11 @@ fn test_end_to_end_compilation() -> Result<()> {
     assert!(main_rs_path.exists(), "src/main.rs was not created");
 
     let main_content = std::fs::read_to_string(main_rs_path)?;
-    assert!(main_content.contains("pub fn get_capital"), "get_capital function not found in generated code");
-    
+    assert!(
+        main_content.contains("pub fn get_capital"),
+        "get_capital function not found in generated code"
+    );
+
     // You could even try to compile and run the generated project here for a full-cycle test.
 
     Ok(())

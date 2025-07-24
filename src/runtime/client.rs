@@ -1,5 +1,6 @@
 use crate::config::Config;
-use anyhow::{anyhow, Result};
+use crate::runtime::llm_provider::LlmProvider; // Import the new trait
+use anyhow::{Result, anyhow};
 use reqwest::blocking::Client;
 use serde_json::json;
 
@@ -15,8 +16,11 @@ impl LlmClient {
             config,
         })
     }
+}
 
-    pub fn generate(&self, prompt: &str) -> Result<String> {
+// Implement the LlmProvider trait for the real LlmClient
+impl LlmProvider for LlmClient {
+    fn generate(&self, prompt: &str) -> Result<String> {
         let request_body = json!({
             "model": &self.config.ollama_model,
             "prompt": prompt,
@@ -41,18 +45,17 @@ impl LlmClient {
         }
 
         let response_json: serde_json::Value = response.json()?;
-        let content = response_json["response"]
-            .as_str()
-            .ok_or_else(|| anyhow!("Invalid response format from LLM API: `response` field missing or not a string"))?;
-            
+        let content = response_json["response"].as_str().ok_or_else(|| {
+            anyhow!(
+                "Invalid response format from LLM API: `response` field missing or not a string"
+            )
+        })?;
+
         Ok(content.to_string())
     }
 }
 
-// NEW: Implement the Default trait for LlmClient.
 impl Default for LlmClient {
-    /// Creates a default LlmClient using a default configuration.
-    /// Panics if the underlying client creation fails (which is very rare).
     fn default() -> Self {
         Self {
             client: Client::new(),

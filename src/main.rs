@@ -24,10 +24,10 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
     let config = Config::from_env();
-    
+
     println!("Reading source file: {:?}", &args.input_file);
     let source = fs::read_to_string(&args.input_file)?;
-    
+
     // 1. Parse the source code into an AST
     println!("Parsing VibeLang source...");
     let ast = parse_source(&source)?;
@@ -43,11 +43,7 @@ fn main() -> Result<()> {
     let project_builder = ProjectBuilder::new(&llm_client);
 
     // Delegate all project creation logic to the builder.
-    project_builder.build(
-        &args.output_dir,
-        &source,
-        &generated_code,
-    )?;
+    project_builder.build(&args.output_dir, &source, &generated_code)?;
 
     println!("\n✅ Compilation successful!");
     println!("Generated project is located in: {:?}", &args.output_dir);
