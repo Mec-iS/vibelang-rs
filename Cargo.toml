@@ -3,6 +3,8 @@ name = "vibelang"
 version = "0.1.0"
 edition = "2024"
 repository = "https://github.com/Mec-iS/vibelang-rs"
+description = "Programmatically instantiate Web Agents from Vibelang files"
+license = "MIT"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
