@@ -102,12 +102,12 @@ pub fn {{ func.name }}(llm: &LlmClient, {% for param in func.params %}{{ param.n
     {% endfor %}
     
     let meaning = {% if func.semantic_meaning %}Some("{{ func.semantic_meaning }}"){% else %}None{% endif %};
-    // CHANGE: The string passed to the runtime is the base type, not the alias.
+    // The string passed to the runtime is the base type, not the alias.
     let return_type_str = "{{ func.return_base_type }}";
 
     let result = vibe_execute_prompt(llm, &template, meaning, return_type_str);
 
-    // CHANGE: The logic now uses `func.return_base_type` to generate the correct conversion call.
+    // The logic now uses `func.return_base_type` to generate the correct conversion call.
     {% if func.return_base_type == "i32" %}
     result.into_i32()
     {% elif func.return_base_type == "f64" %}
@@ -120,29 +120,30 @@ pub fn {{ func.name }}(llm: &LlmClient, {% for param in func.params %}{{ param.n
 }
 {% endfor %}
 
-// --- Main application entry point ---
-fn main() {
-    println!("VibeLang program compiled: 🔎  Checking there is a local Ollama instance running  🔎");
-    println!("VibeLang program compiled: ⚠️  To start the agent: uncomment the code in `generated/src/main.rs`  ⚠️");
 
-    /*
+// --- Main application entry point ---
+fn main() -> anyhow::Result<()> {
+    println!("VibeLang program compiled: 🔎 Checking for a local Ollama instance 🔎");
+    println!("VibeLang program compiled: ⚠️ `generated/src/main.rs` change the test values to meaningful values ⚠️");
+
     // 1. Set up the LLM Client
-    // This reads OLLAMA_BASE_URL and OLLAMA_MODEL from your environment variables.
+    // This reads OLLAMA_BASE_URL and OLLAMA_MODEL from your environment.
     println!("Setting up LLM client...");
     let config = vibelang::config::Config::from_env();
-    let client = vibelang::runtime::client::LlmClient::new(config)
-        .expect("Failed to create LLM client");
+    let client = vibelang::runtime::client::LlmClient::new(config)?;
 
-    // 2. Call a generated function
-    println!("\n--- Querying LLM ---");
-    let country = "Japan".to_string();
-    let capital = get_capital(&client, country);
-    println!("The capital of Japan is: {}", capital);
+    // 2. Dynamically call all generated functions with test values
+    {% for func in functions %}
+    println!("\n--- Calling function: {{ func.name }} ---");
+    // Call the function with auto-generated test parameters.
+    let result_{{ func.name }} = {{ func.name }}(
+        &client,
+        {% for param in func.params -%}
+        {{ param.test_value }}{% if not loop.last %}, {% endif %}  // <-------------- CHANGE THE TEST VALUE
+        {%- endfor %}
+    );
+    println!("Result for {{ func.name }}: {:?}", result_{{ func.name }});
+    {% endfor %}
 
-    let population = get_population(&client, "Brazil".to_string());
-    println!("The population of Brazil is roughly {} million.", population);
-
-    let fact = get_historical_fact(&client, "Cleopatra".to_string());
-    println!("A fact about Cleopatra: {}", fact);
-    */
+    Ok(())
 }

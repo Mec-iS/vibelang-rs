@@ -34,7 +34,7 @@ pub enum VibeValueData {
 impl LlmInterface {
     pub fn new() -> Result<Self> {
         let ollama_url = env::var("OLLAMA_BASE_URL")
-            .unwrap_or_else(|_| "http://localhost:11223/api/generate".to_string());
+            .unwrap_or_else(|_| "http://localhost:11434".to_string());
 
         // Try to detect if Ollama is running locally
         let use_ollama = Self::is_ollama_available(&ollama_url);

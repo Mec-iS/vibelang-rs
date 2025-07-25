@@ -13,7 +13,7 @@ impl Config {
         Self {
             ollama_base_url: std::env::var("OLLAMA_BASE_URL")
                 .unwrap_or_else(|_| "http://localhost:11434".to_string()),
-            ollama_model: std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| "llama3".to_string()),
+            ollama_model: std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string()),
         }
     }
 }
@@ -24,7 +24,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             ollama_base_url: "http://localhost:11434".to_string(),
-            ollama_model: "llama3".to_string(),
+            ollama_model: "llama3.1".to_string(),
         }
     }
 }

@@ -22,7 +22,7 @@ pub fn run_file<P: AsRef<Path>>(source_path: P, output_dir: P) -> Result<()> {
     let output_dir = output_dir.as_ref();
 
     // Step 1: Generate the Rust code from the source file.
-    println!("⚙️ [1/3] Compiling VibeLang source from: {:?}", source_path);
+    println!("⚙️  [1/3] Compiling VibeLang source from: {:?}", source_path);
     let source_code = fs::read_to_string(source_path)?;
     let generated_code = compiler::compile(&source_code)?;
 
