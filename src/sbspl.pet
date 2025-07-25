@@ -1,0 +1,87 @@
+// ------------------------------------------------------------------
+// Grammar for Semantically Annotated BSPL (S-BSPL) - Version 3
+// Features the cleaner `<Type>("description")` annotation syntax.
+// ------------------------------------------------------------------
+
+// -- Basic Utility Rules --
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT    = _{ "//" ~ (!("\r" | "\n") ~ ANY)* | "/*" ~ (COMMENT | (!"*/" ~ ANY))* ~ "*/" }
+Comma      = _{ "," }
+
+// -- Keywords (case-sensitive) --
+kw_roles       = @{ "roles" }
+kw_parameters  = @{ "parameters" }
+kw_private     = @{ "private" }
+kw_key         = @{ "key" }
+kw_in          = @{ "in" }
+kw_out         = @{ "out" }
+// NOTE: "is" and "Meaning" keywords have been removed.
+
+// -- Core Literals and Identifiers --
+Identifier    = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+StringLiteral = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+
+// ------------------------------------------------------------------
+// -- Top-Level Structure --
+// ------------------------------------------------------------------
+// A program is a sequence of one or more protocol declarations.
+Program = { SOI ~ ProtocolDecl+ ~ EOI }
+
+// A protocol has a name and a mandatory semantic annotation.
+// Example: Purchase <Protocol>("...") { ... }
+ProtocolDecl = { Identifier ~ TypeAnnotation ~ "{" ~ ProtocolBody ~ "}" }
+
+// The body enforces a clear structure: declarations first, then statements.
+ProtocolBody = {
+    RolesBlock ~
+    ParametersBlock? ~
+    PrivateBlock? ~
+    Statement*
+}
+
+// ------------------------------------------------------------------
+// -- Declaration Blocks (Roles, Parameters, Private) --
+// ------------------------------------------------------------------
+// Defines protocol participants, each with a mandatory annotation.
+// Example: B <Agent>("..."),
+RolesBlock = { kw_roles ~ RoleDecl+ }
+RoleDecl = { Identifier ~ TypeAnnotation ~ Comma? }
+
+// Defines the data exchanged, each with a mandatory annotation.
+// The `key` attribute from BSPL is supported as an optional keyword.
+// Example: ID key <String>("..."),
+ParametersBlock = { kw_parameters ~ ParamDecl+ }
+ParamDecl = { Identifier ~ kw_key? ~ TypeAnnotation ~ Comma? }
+
+// Defines role-internal variables (not semantically annotated).
+PrivateBlock = { kw_private ~ IdentifierList }
+IdentifierList = { Identifier ~ (Comma ~ Identifier)* ~ Comma? }
+
+// ------------------------------------------------------------------
+// -- Protocol Body Statements (Interactions and Subprotocols) --
+// ------------------------------------------------------------------
+Statement = { Interaction | SubprotocolInvocation }
+
+// Defines a message with a mandatory annotation for the message name.
+// Example: B -> S: rfq <Action>("...")[out ID]
+Interaction = { Identifier ~ "->" ~ Identifier ~ ":" ~ MessageDef }
+MessageDef = { Identifier ~ TypeAnnotation ~ "[" ~ IoParamList? ~ "]" }
+
+// Defines an invocation of a nested sub-protocol.
+// Note: This syntax remains the same as it describes composition, not semantics.
+SubprotocolInvocation = { Identifier ~ "(" ~ RoleList ~ ")" ~ "[" ~ IoParamList? ~ "]" }
+RoleList = { Identifier ~ (Comma ~ Identifier)* ~ Comma? }
+
+IoParamList = { IoParam ~ (Comma ~ IoParam)* ~ Comma? }
+IoParam = { (kw_in | kw_out) ~ Identifier }
+
+// ------------------------------------------------------------------
+// -- Core Semantic Annotation Rule --
+// ------------------------------------------------------------------
+// This is the new, unified rule for all semantic annotations.
+// It captures the <Type>("description") pattern.
+TypeAnnotation = { "<" ~ Type ~ ">" ~ "(" ~ StringLiteral ~ ")" }
+
+// A Type is currently defined as a simple identifier (e.g., Agent, String, Action).
+// This can be extended later to support more complex, nested types if needed.
+Type = { Identifier }
