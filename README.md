@@ -9,7 +9,7 @@ VibeLang is a format to describe LLM interactions to generic clients, base on **
 It works for now it only works with Ollama but simple clients to any OpenAI-style API could be implemented.
 
 1. Create your resource description file or string (see `examples/`)
-2. generate automatically Rust code running `cargo run -- your-file.vibe --output-dir ./generated`
+2. `cargo run -- your_file.vibe`
 3. modify the `generated/main.rs` to make the desired calls to the LLM using the pregenerated code
 4. `cd generate && cargo run`. Enjoy 
 

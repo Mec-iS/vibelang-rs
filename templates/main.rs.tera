@@ -3,7 +3,6 @@
 // Copyright (c) 2025 Mec-iS
 // This file is generated from a template. Do not edit manually.
 
-use vibelang::runtime::llm_provider::LlmProvider;
 use vibelang::runtime::{
     client::LlmClient,
     types::VibeValue,
@@ -123,8 +122,8 @@ pub fn {{ func.name }}(llm: &LlmClient, {% for param in func.params %}{{ param.n
 
 // --- Main application entry point ---
 fn main() {
-    println!("VibeLang program compiled: Check there is a local Ollama instance running");
-    println!("VibeLang program compiled: To run the functions, uncomment the code below.");
+    println!("VibeLang program compiled: 🔎  Checking there is a local Ollama instance running  🔎");
+    println!("VibeLang program compiled: ⚠️  To start the agent: uncomment the code in `generated/src/main.rs`  ⚠️");
 
     /*
     // 1. Set up the LLM Client
