@@ -3,11 +3,12 @@
 // Copyright (c) 2025 Mec-iS
 // This file is generated from a template. Do not edit manually.
 
-use std::collections::HashMap;
+use vibelang::runtime::llm_provider::LlmProvider;
 use vibelang::runtime::{
     client::LlmClient,
     types::VibeValue,
 };
+use vibelang::runtime::llm_provider::LlmProvider;
 
 // --- MTP Type Definitions ---
 {% for alias in type_aliases %}

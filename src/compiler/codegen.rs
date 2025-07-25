@@ -211,7 +211,6 @@ impl CodeGenerator {
                     }
                 }
                 AstNodeType::BasicType | AstNodeType::MeaningType => {
-                    // ** THE CORE FIX IS HERE **
                     let (vibe_type_name, initial_base_type, mut direct_meaning) =
                         self.get_type_info_from_node(child);
 
