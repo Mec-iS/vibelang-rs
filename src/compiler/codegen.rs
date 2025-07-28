@@ -8,10 +8,11 @@ use tera::{Context, Tera};
 pub static TEMPLATES: Lazy<Tera> = Lazy::new(|| {
     let mut tera = Tera::default();
     tera.add_raw_template("main.rs.tera", include_str!("../../templates/main.rs.tera"))
-        .expect("Failed to parse template");
+        .expect("Failed to parse main template");
+    tera.add_raw_template("lib.rs.tera", include_str!("../../templates/lib.rs.tera"))
+        .expect("Failed to parse lib template");
     tera
 });
-
 #[derive(Serialize)]
 struct TypeAlias {
     name: String,
@@ -55,15 +56,19 @@ impl CodeGenerator {
         Self {}
     }
 
-    pub fn generate(&self, ast: &AstNode) -> Result<String> {
-        // ... (context setup and type processing is unchanged) ...
+    /// Generates Rust code from the AST.
+    ///
+    /// # Arguments
+    /// * `ast` - The Abstract Syntax Tree to generate code from.
+    /// * `as_lib` - If true, generates library code; if false, generates binary code with main function.
+    pub fn generate(&self, ast: &AstNode, as_lib: bool) -> Result<String> {
         let mut context = Context::new();
-
-        let mut type_aliases = Vec::new();
+        let mut type_aliases: Vec<TypeAlias> = Vec::new();
         let mut semantic_meanings: HashMap<String, (String, String)> = HashMap::new();
         let mut type_alias_map: HashMap<String, String> = HashMap::new();
         let mut type_meaning_map: HashMap<String, String> = HashMap::new();
 
+        // Process type declarations
         for node in &ast.children {
             if let AstNodeType::TypeDecl = node.node_type {
                 self.process_type_decl_node(
@@ -75,19 +80,16 @@ impl CodeGenerator {
                 );
             }
         }
-        
-        let mut functions = Vec::new();
+
+        // Process function declarations
+        let mut functions: Vec<Function> = Vec::new();
         for node in &ast.children {
             if let AstNodeType::FunctionDecl = node.node_type {
-                functions.push(self.process_function_node(
-                    node,
-                    &type_alias_map,
-                    &type_meaning_map,
-                )?);
+                functions.push(self.process_function_node(node, &type_alias_map, &type_meaning_map)?);
             }
         }
 
-        // ... (semantic group processing and rendering is unchanged) ...
+        // Process semantic type groups
         let mut grouped_semantics: HashMap<String, Vec<SemanticHandler>> = HashMap::new();
         for (meaning, (rust_type, normalized_name)) in semantic_meanings {
             let group = grouped_semantics.entry(rust_type).or_default();
@@ -96,6 +98,7 @@ impl CodeGenerator {
                 normalized_name,
             });
         }
+
         let semantic_type_groups: Vec<SemanticTypeGroup> = grouped_semantics
             .into_iter()
             .map(|(rust_type, handlers)| SemanticTypeGroup {
@@ -107,8 +110,19 @@ impl CodeGenerator {
         context.insert("type_aliases", &type_aliases);
         context.insert("functions", &functions);
         context.insert("semantic_type_groups", &semantic_type_groups);
+        context.insert("as_lib", &as_lib);
 
-        let rendered = TEMPLATES.render("main.rs.tera", &context)?;
+        let template_name = if as_lib { "lib.rs.tera" } else { "main.rs.tera" };
+        let rendered = match TEMPLATES.render(template_name, &context) {
+            Ok(code) => code,
+            Err(e) => {
+                eprintln!("Template rendering error: {}", e);
+                eprintln!("Template name: {}", template_name);
+                eprintln!("Context variables: type_aliases={}, functions={}, semantic_type_groups={}", 
+                        type_aliases.len(), functions.len(), semantic_type_groups.len());
+                return Err(e.into());
+            }
+        };
         Ok(rendered)
     }
 

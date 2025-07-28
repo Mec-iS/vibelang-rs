@@ -23,19 +23,19 @@ fn test_end_to_end_compilation() -> Result<()> {
     let config = Config::from_env();
     let llm_client = LlmClient::new(config)?;
     let ast = parse_source(vibe_source)?;
-    let generated_code = CodeGenerator::new().generate(&ast, false)?;
+    let generated_code = CodeGenerator::new().generate(&ast, true)?;
 
     let builder = ProjectBuilder::new(&llm_client);
     builder.build(output_path, vibe_source, &generated_code, false)?;
 
     // 3. Verification: Check that the expected files were created.
     let cargo_toml_path = output_path.join("Cargo.toml");
-    let main_rs_path = output_path.join("src/main.rs");
+    let lib_rs_path = output_path.join("src/lib.rs");
 
     assert!(cargo_toml_path.exists(), "Cargo.toml was not created");
-    assert!(main_rs_path.exists(), "src/main.rs was not created");
+    assert!(lib_rs_path.exists(), "src/lib.rs was not created");
 
-    let main_content = std::fs::read_to_string(main_rs_path)?;
+    let main_content = std::fs::read_to_string(lib_rs_path)?;
     assert!(
         main_content.contains("pub fn get_capital"),
         "get_capital function not found in generated code"

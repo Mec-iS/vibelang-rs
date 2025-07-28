@@ -1,0 +1,109 @@
+//! VibeLang Generated Library
+//!
+//! This library was automatically generated from VibeLang source code.
+//! It provides type-safe wrappers and semantic handlers for AI-powered operations.
+
+use anyhow::Result;
+use serde_json::Value;
+use std::collections::HashMap;
+
+{% for type_alias in type_aliases -%}
+/// Type alias: {{ type_alias.name }}
+{% if type_alias.meaning -%}
+/// Semantic meaning: {{ type_alias.meaning }}
+{% endif -%}
+pub type {{ type_alias.name }} = {{ type_alias.base_type }};
+
+{% endfor -%}
+
+{% for group in semantic_type_groups -%}
+/// Semantic handlers for {{ group.rust_type }}
+pub mod {{ group.rust_type | lower }}_semantics {
+    use super::*;
+    
+    {% for handler in group.handlers -%}
+    /// Handles semantic meaning: "{{ handler.meaning }}"
+    pub async fn {{ handler.normalized_name }}(input: {{ group.rust_type }}) -> Result<{{ group.rust_type }}> {
+        crate::llm::query_llm(
+            &format!("Process this {{ group.rust_type | lower }} with semantic meaning '{{ handler.meaning }}': {:?}", input),
+            "{{ handler.meaning }}"
+        ).await
+    }
+    
+    {% endfor -%}
+}
+
+{% endfor -%}
+
+{% for function in functions -%}
+/// {{ function.name }}
+{% if function.semantic_meaning -%}
+/// Semantic operation: {{ function.semantic_meaning }}
+{% endif -%}
+pub async fn {{ function.name }}(
+    {%- for param in function.params -%}
+    {{ param.name }}: {{ param.rust_type }}{% if not loop.last %}, {% endif %}
+    {%- endfor -%}
+) -> Result<{{ function.return_type }}> {
+    let prompt = format!(
+        "{{ function.prompt_template }}",
+        {%- for param in function.params -%}
+        {{ param.name }} = {{ param.name }}{% if not loop.last %}, {% endif %}
+        {%- endfor -%}
+    );
+    
+    {% if function.semantic_meaning -%}
+    crate::llm::query_llm(&prompt, "{{ function.semantic_meaning }}").await
+    {% else -%}
+    crate::llm::query_llm(&prompt, "{{ function.name }}").await
+    {% endif -%}
+}
+
+{% endfor -%}
+
+/// LLM integration module
+pub mod llm {
+    use super::*;
+    
+    /// Query the LLM with a prompt and semantic context
+    pub async fn query_llm<T>(prompt: &str, semantic_context: &str) -> Result<T>
+    where
+        T: serde::de::DeserializeOwned + std::str::FromStr,
+        <T as std::str::FromStr>::Err: std::fmt::Debug,
+    {
+        // This is a placeholder implementation
+        // In a real implementation, this would integrate with your preferred LLM service
+        println!("LLM Query - Context: {}", semantic_context);
+        println!("LLM Query - Prompt: {}", prompt);
+        
+        // For now, return a default value or error
+        Err(anyhow::anyhow!("LLM integration not implemented yet"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[tokio::test]
+    async fn test_library_functions() {
+        // 1. Set up the LLM Client
+        // This reads OLLAMA_BASE_URL and OLLAMA_MODEL from your environment.
+        println!("Setting up LLM client...");
+        let config = vibelang::config::Config::from_env();
+        let client = vibelang::runtime::client::LlmClient::new(config)?;
+
+        // 2. Dynamically call all generated functions with test values
+        {% for func in functions %}
+        println!("\n--- Calling function: {{ func.name }} ---");
+        // Call the function with auto-generated test parameters.
+        let result_{{ func.name }} = {{ func.name }}(
+            &client,
+            {% for param in func.params -%}
+            {{ param.test_value }}{% if not loop.last %}, {% endif %}  // <-------------- CHANGE THE TEST VALUE
+            {%- endfor %}
+        );
+        println!("Result for {{ func.name }}: {:?}", result_{{ func.name }});
+        {% endfor %}
+    }
+}

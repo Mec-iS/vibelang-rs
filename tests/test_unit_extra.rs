@@ -17,7 +17,7 @@ fn test_joke_generation_payload() -> Result<()> {
     // --- Act ---
     // Run the source through the parser and code generator.
     let ast = parse_source(vibe_source)?;
-    let generated_code = CodeGenerator::new().generate(&ast)?;
+    let generated_code = CodeGenerator::new().generate(&ast, false)?;
 
     // --- Assert ---
     // Verify that the type aliases were created correctly.
@@ -66,7 +66,7 @@ fn test_greeting_generation_payload_with_inline_meaning() -> Result<()> {
 
     // --- Act ---
     let ast = parse_source(vibe_source)?;
-    let generated_code = CodeGenerator::new().generate(&ast)?;
+    let generated_code = CodeGenerator::new().generate(&ast, false)?;
 
     // --- Assert ---
     // This test is particularly important as it verifies how the compiler handles
