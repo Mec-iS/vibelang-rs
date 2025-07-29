@@ -21,8 +21,14 @@ fn test_joke_generation_payload() -> Result<()> {
 
     // --- Assert ---
     // Verify that the type aliases were created correctly.
-    assert!(generated_code.contains("pub type Joke = String;"), "Joke type alias is incorrect.");
-    assert!(generated_code.contains("pub type Topic = String;"), "Topic type alias is incorrect.");
+    assert!(
+        generated_code.contains("pub type Joke = String;"),
+        "Joke type alias is incorrect."
+    );
+    assert!(
+        generated_code.contains("pub type Topic = String;"),
+        "Topic type alias is incorrect."
+    );
 
     // Verify the function signature is correct.
     assert!(
@@ -32,10 +38,11 @@ fn test_joke_generation_payload() -> Result<()> {
 
     // Verify the prompt template is correctly embedded.
     assert!(
-        generated_code.contains(r#"let mut template = "Tell me a short joke about {topic}.".to_string();"#),
+        generated_code
+            .contains(r#"let mut template = "Tell me a short joke about {topic}.".to_string();"#),
         "Prompt template was not correctly generated."
     );
-    
+
     // Verify that the semantic meaning was correctly inherited from the `Joke` return type.
     assert!(
         generated_code.contains(r#"let meaning = Some("a short humorous line");"#),
@@ -79,13 +86,20 @@ fn test_greeting_generation_payload_with_inline_meaning() -> Result<()> {
     // Verify the function signature. The inline `Meaning` for `name`
     // should be compiled down to its base Rust type (`String`).
     assert!(
-        generated_code.contains("pub fn generateGreeting(llm: &LlmClient, name: String, language: Language) -> Greeting"),
+        generated_code.contains(
+            "pub fn generateGreeting(llm: &LlmClient, name: String, language: Language) -> Greeting"
+        ),
         "generateGreeting function signature is incorrect. Check handling of inline Meaning parameter."
     );
 
     // Verify that both placeholders are correctly handled.
-    assert!(generated_code.contains(r#"template = template.replace("{name}", &name.to_string());"#));
-    assert!(generated_code.contains(r#"template = template.replace("{language}", &language.to_string());"#));
+    assert!(
+        generated_code.contains(r#"template = template.replace("{name}", &name.to_string());"#)
+    );
+    assert!(
+        generated_code
+            .contains(r#"template = template.replace("{language}", &language.to_string());"#)
+    );
 
     // Verify the semantic meaning is inherited from the `Greeting` return type.
     assert!(

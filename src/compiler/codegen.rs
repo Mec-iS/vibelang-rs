@@ -85,7 +85,11 @@ impl CodeGenerator {
         let mut functions: Vec<Function> = Vec::new();
         for node in &ast.children {
             if let AstNodeType::FunctionDecl = node.node_type {
-                functions.push(self.process_function_node(node, &type_alias_map, &type_meaning_map)?);
+                functions.push(self.process_function_node(
+                    node,
+                    &type_alias_map,
+                    &type_meaning_map,
+                )?);
             }
         }
 
@@ -112,14 +116,22 @@ impl CodeGenerator {
         context.insert("semantic_type_groups", &semantic_type_groups);
         context.insert("as_lib", &as_lib);
 
-        let template_name = if as_lib { "lib.rs.tera" } else { "main.rs.tera" };
+        let template_name = if as_lib {
+            "lib.rs.tera"
+        } else {
+            "main.rs.tera"
+        };
         let rendered = match TEMPLATES.render(template_name, &context) {
             Ok(code) => code,
             Err(e) => {
                 eprintln!("Template rendering error: {}", e);
                 eprintln!("Template name: {}", template_name);
-                eprintln!("Context variables: type_aliases={}, functions={}, semantic_type_groups={}", 
-                        type_aliases.len(), functions.len(), semantic_type_groups.len());
+                eprintln!(
+                    "Context variables: type_aliases={}, functions={}, semantic_type_groups={}",
+                    type_aliases.len(),
+                    functions.len(),
+                    semantic_type_groups.len()
+                );
                 return Err(e.into());
             }
         };
@@ -128,12 +140,12 @@ impl CodeGenerator {
 
     fn generate_test_value(&self, base_rust_type: &str) -> String {
         match base_rust_type {
-            "i32"    => "123".to_string(),
-            "f64"    => "45.6".to_string(),
-            "bool"   => "true".to_string(),
+            "i32" => "123".to_string(),
+            "f64" => "45.6".to_string(),
+            "bool" => "true".to_string(),
             "String" => "\"Test Topic\".to_string()".to_string(),
             // Fallback for unknown types.
-            _        => panic!("Cannot generate test value for this type"),
+            _ => panic!("Cannot generate test value for this type"),
         }
     }
 
@@ -176,7 +188,7 @@ impl CodeGenerator {
             _ => ("()".to_string(), "()".to_string(), None),
         }
     }
-    
+
     fn process_type_decl_node(
         &self,
         node: &AstNode,
@@ -203,7 +215,6 @@ impl CodeGenerator {
         });
     }
 
-
     fn process_function_node(
         &self,
         node: &AstNode,
@@ -224,13 +235,13 @@ impl CodeGenerator {
                         let param_name = param_node.get_string("name").unwrap().clone();
                         let (param_alias, param_base, _) =
                             self.get_type_info_from_node(&param_node.children[0]);
-                        
+
                         let param_rust_type = if type_alias_map.contains_key(&param_alias) {
                             param_alias
                         } else {
                             param_base.clone()
                         };
-                        
+
                         // UPDATED: Generate a test value for the parameter.
                         let test_value = self.generate_test_value(&param_base);
 

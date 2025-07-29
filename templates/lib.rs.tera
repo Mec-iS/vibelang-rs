@@ -5,7 +5,6 @@
 
 use anyhow::Result;
 use serde_json::Value;
-use std::collections::HashMap;
 
 {% for type_alias in type_aliases -%}
 /// Type alias: {{ type_alias.name }}

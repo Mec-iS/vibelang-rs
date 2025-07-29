@@ -24,7 +24,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     println!("--- VibeLang Project Runner ---");
-    
+
     // Run parser and code generation.
     runnable::run_file(&cli.input_file, &cli.output_dir, cli.as_lib)?;
 

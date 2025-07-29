@@ -35,8 +35,9 @@ impl<'a, T: LlmProvider> ProjectBuilder<'a, T> {
 
         let (package_name, bin_name) = self.generate_project_names(vibelang_source)?;
         let vibelang_version = self.get_vibelang_version()?;
-        let cargo_content = self.create_cargo_toml_content(&package_name, &bin_name, as_lib, &vibelang_version)?;
-        
+        let cargo_content =
+            self.create_cargo_toml_content(&package_name, &bin_name, as_lib, &vibelang_version)?;
+
         fs::write(output_dir.join("Cargo.toml"), cargo_content)?;
 
         // Generate either lib.rs or main.rs based on as_lib parameter
@@ -74,7 +75,10 @@ impl<'a, T: LlmProvider> ProjectBuilder<'a, T> {
     /// Extracts the version from Cargo.toml content.
     fn extract_version_from_cargo_toml(&self, content: &str) -> Option<String> {
         let version_regex = Regex::new(r#"(?m)^version\s*=\s*"([^"]+)""#).ok()?;
-        version_regex.captures(content)?.get(1).map(|m| m.as_str().to_string())
+        version_regex
+            .captures(content)?
+            .get(1)
+            .map(|m| m.as_str().to_string())
     }
 
     /// Creates the Cargo.toml content for the project.
@@ -148,7 +152,7 @@ path = "src/main.rs"
             return Ok(("vibe-project".to_string(), "vibeapp".to_string()));
         }
 
-        // This can generate context-aware project
+        // This can generate context-aware project names
         // let context = annotations.join(", ");
         // let prompt = format!(
         //     "Based on these concepts: {}, suggest a snake_case Rust package name and a binary name. Respond ONLY with JSON in the format {{\"packagename\": \"name\", \"binname\": \"name\"}}",
@@ -176,7 +180,7 @@ mod tests {
     fn test_version_extraction() {
         let mock_client = MockLlmProvider::new();
         let builder = ProjectBuilder::new(&mock_client);
-        
+
         let cargo_content = r#"[package]
 name = "vibelang"
 version = "0.2.5"
@@ -185,7 +189,7 @@ edition = "2024"
 [dependencies]
 serde = "1.0"
 "#;
-        
+
         let version = builder.extract_version_from_cargo_toml(cargo_content);
         assert_eq!(version, Some("0.2.5".to_string()));
     }
@@ -194,7 +198,9 @@ serde = "1.0"
     fn test_cargo_toml_generation_binary_with_version() {
         let mock_client = MockLlmProvider::new();
         let builder = ProjectBuilder::new(&mock_client);
-        let content = builder.create_cargo_toml_content("mycoolpackage", "myapp", false, "0.2.5").unwrap();
+        let content = builder
+            .create_cargo_toml_content("mycoolpackage", "myapp", false, "0.2.5")
+            .unwrap();
         assert!(content.contains(r#"name = "mycoolpackage""#));
         assert!(content.contains(r#"name = "myapp""#));
         assert!(content.contains("[[bin]]"));
@@ -206,7 +212,9 @@ serde = "1.0"
     fn test_cargo_toml_generation_library_with_version() {
         let mock_client = MockLlmProvider::new();
         let builder = ProjectBuilder::new(&mock_client);
-        let content = builder.create_cargo_toml_content("mycoolpackage", "myapp", true, "0.2.5").unwrap();
+        let content = builder
+            .create_cargo_toml_content("mycoolpackage", "myapp", true, "0.2.5")
+            .unwrap();
         assert!(content.contains(r#"name = "mycoolpackage""#));
         assert!(content.contains("[lib]"));
         assert!(content.contains("tokio"));
@@ -217,10 +225,9 @@ serde = "1.0"
     #[test]
     fn test_name_generation_with_valid_llm_json() {
         let mut mock_client = MockLlmProvider::new();
-        mock_client
-            .expect_generate()
-            .times(1)
-            .returning(|_| Ok(r#"{"packagename": "geography_tools", "binname": "capitalfinder"}"#.to_string()));
+        mock_client.expect_generate().times(1).returning(|_| {
+            Ok(r#"{"packagename": "geography_tools", "binname": "capitalfinder"}"#.to_string())
+        });
 
         let builder = ProjectBuilder::new(&mock_client);
         let source = r#"type Capital = Meaning<String>("the capital city of a country")"#;
@@ -249,7 +256,7 @@ serde = "1.0"
     #[test]
     fn test_name_generation_falls_back_with_no_annotations() {
         let mock_client = MockLlmProvider::new();
-        
+
         let builder = ProjectBuilder::new(&mock_client);
         let source = r#"fn get_year() -> Int { prompt "What year is it?" }"#;
         let (package_name, bin_name) = builder.generate_project_names(source).unwrap();

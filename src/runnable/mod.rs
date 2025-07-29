@@ -1,11 +1,11 @@
-use anyhow::Result;
-use std::fs;
-use std::path::Path;
-use std::process::Command;
 use crate::compiler;
 use crate::compiler::project_builder::ProjectBuilder;
 use crate::config::Config;
 use crate::runtime::client::LlmClient;
+use anyhow::Result;
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 /// Compiles a VibeLang source file, scaffolds a project, and runs it.
 ///
@@ -22,12 +22,18 @@ pub fn run_file<P: AsRef<Path>>(source_path: P, output_dir: P, as_lib: bool) -> 
     let output_dir = output_dir.as_ref();
 
     // Step 1: Generate the Rust code from the source file.
-    println!("⚙️  [1/3] Compiling VibeLang source from: {:?}", source_path);
+    println!(
+        "⚙️  [1/3] Compiling VibeLang source from: {:?}",
+        source_path
+    );
     let source_code = fs::read_to_string(source_path)?;
     let generated_code = compiler::compile(&source_code, as_lib)?;
 
     // Step 2: Build the project structure in the 'generated' directory.
-    println!("⚙️  [2/3] Generating project structure at: {:?}", output_dir);
+    println!(
+        "⚙️  [2/3] Generating project structure at: {:?}",
+        output_dir
+    );
     let config = Config::from_env();
     let llm_client = LlmClient::new(config)?;
     let project_builder = ProjectBuilder::new(&llm_client);
@@ -46,7 +52,9 @@ pub fn run_file<P: AsRef<Path>>(source_path: P, output_dir: P, as_lib: bool) -> 
         .status()?;
 
     if !status.success() {
-        anyhow::bail!("Failed to compile or run the generated project. Review the output above for errors.");
+        anyhow::bail!(
+            "Failed to compile or run the generated project. Review the output above for errors."
+        );
     }
 
     Ok(())
